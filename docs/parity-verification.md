@@ -2,6 +2,12 @@
 
 Use these commands for the main release-candidate checks after parity work.
 
+## Current State
+
+- Python parity work is currently in a release-candidate state.
+- `docs/parity-backlog.md` is fully marked `done`.
+- Use `python3 src-python/tests/run_release_candidate.py` as the default verification entry point for future changes.
+
 ## One-Command Wrapper
 
 - `python3 src-python/tests/run_release_candidate.py`
