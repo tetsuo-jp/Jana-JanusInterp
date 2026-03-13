@@ -238,6 +238,21 @@ class Runtime:
     if self.debug and self.step_debugging and not self._step_completed:
       self._step_completed = True
 
+  def _clear_current_boundary(self) -> None:
+    self._current_boundary_line = None
+
+  def _reset_debug_step_state(self) -> None:
+    self.step_debugging = False
+    self._step_completed = False
+
+  def _prepare_forward_debug_command(self) -> None:
+    self.step_debugging = True
+    self._at_end_break = False
+    self._step_completed = False
+
+  def _clear_end_break(self) -> None:
+    self._at_end_break = False
+
   def _print_line_break(self, line: int) -> None:
     self.current_line = line
     print(f"[Break at line {line}] ")
@@ -391,16 +406,15 @@ class Runtime:
     line = pos.line
     self.current_line = line
     if self.step_debugging and self._step_completed:
-      self._at_end_break = False
-      self.step_debugging = False
-      self._step_completed = False
-      self._current_boundary_line = None
+      self._clear_end_break()
+      self._reset_debug_step_state()
+      self._clear_current_boundary()
       self._print_line_break(line)
       self._make_break(frame)
       return
     if line in self.breakpoints:
-      self._at_end_break = False
-      self._current_boundary_line = None
+      self._clear_end_break()
+      self._clear_current_boundary()
       self._print_line_break(line)
       self._make_break(frame)
 
@@ -437,18 +451,14 @@ class Runtime:
             return
           if self._at_end_break:
             self._execute_backward_to_boundary(self._root_frame)
-            self._at_end_break = False
-            self.step_debugging = False
-            self._step_completed = False
+            self._clear_end_break()
+            self._reset_debug_step_state()
             continue
           self._execute_backward_step(self._root_frame)
-          self._at_end_break = False
-          self.step_debugging = False
-          self._step_completed = False
+          self._clear_end_break()
+          self._reset_debug_step_state()
           continue
-        self.step_debugging = True
-        self._at_end_break = False
-        self._step_completed = False
+        self._prepare_forward_debug_command()
         return
       if cmd in {"f", "forward", "b", "backward"}:
         if cmd in {"b", "backward"} and self._root_frame is not None:
@@ -456,11 +466,10 @@ class Runtime:
             self._halt_execution = True
             return
           self._execute_backward_to_breakpoint(self._root_frame)
-          self._at_end_break = False
-          self.step_debugging = False
-          self._step_completed = False
+          self._clear_end_break()
+          self._reset_debug_step_state()
           continue
-        self.step_debugging = False
+        self._reset_debug_step_state()
         return
       if cmd in {"l", "line"}:
         print(f"[Current line is {self.current_line}]")
@@ -486,15 +495,7 @@ class Runtime:
 
   def _execute_backward_step(self, frame: Frame) -> None:
     prior_line = self.current_line
-    while (
-      self._current_boundary_line is not None
-      and self.executed_stmts
-      and self.executed_stmts[-1][0] == self._current_boundary_line
-      and self._is_boundary_marker(self.executed_stmts[-1][1])
-    ):
-      self.executed_stmts.pop()
-    if self._current_boundary_line is not None:
-      self._current_boundary_line = None
+    self._consume_current_boundary_markers()
     while self.executed_stmts:
       line, stmt = self.executed_stmts[-1]
       if self._is_boundary_marker(stmt):
@@ -614,6 +615,17 @@ class Runtime:
     ):
       return outer_line
     return target_line
+
+  def _consume_current_boundary_markers(self) -> None:
+    while (
+      self._current_boundary_line is not None
+      and self.executed_stmts
+      and self.executed_stmts[-1][0] == self._current_boundary_line
+      and self._is_boundary_marker(self.executed_stmts[-1][1])
+    ):
+      self.executed_stmts.pop()
+    if self._current_boundary_line is not None:
+      self._clear_current_boundary()
 
   def _is_begin_boundary(self, line: int) -> bool:
     if line != self._first_stmt_line:
