@@ -1,0 +1,7 @@
+dist-newstyle/
+.git/
+bin/
+web/
+src-gen_ulrik/
+src-gen.zip
+misc/

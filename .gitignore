@@ -1,4 +1,5 @@
 dist
+dist-newstyle
 cabal-dev
 *.o
 *.hi
@@ -9,5 +10,12 @@ cabal-dev
 .cabal-sandbox/
 cabal.sandbox.config
 cabal.config
+.cabal.config
+.cabal/
 .stack-work
 stack.yaml
+
+# Python cache/test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
