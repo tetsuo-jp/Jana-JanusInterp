@@ -17,6 +17,19 @@ RSYNC_OPTS = \
 all:
 	@echo "Run 'make deploy' to deploy"
 
+check: verify smoke
+
+verify:
+	php -l request.php
+	php -l execute.php
+	php -l load.php
+	php -l save.php
+	php -l config.php.example
+
+smoke:
+	php -r '$$_GET["example"]="fib"; include "load.php";' >/dev/null
+	php -r '$$_POST["code"]=file_get_contents("../examples/fib.ja"); $$_POST["intsize"]="arbitrary"; $$_POST["invert"]="off"; include "execute.php";' | grep -q '^0$$'
+
 deploy:
 	rsync $(RSYNC_OPTS) . $(HOST):$(DESTDIR)
 

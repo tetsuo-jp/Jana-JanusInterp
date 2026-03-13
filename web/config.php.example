@@ -1,0 +1,21 @@
+<?php
+
+return array(
+  // Python interpreter used to execute the backend.
+  "python_bin" => "python3",
+
+  // Absolute path to the repository root on the web server.
+  "repo_root" => realpath(__DIR__ . "/.."),
+
+  // Absolute path to the src-python directory.
+  "src_python_dir" => realpath(__DIR__ . "/../src-python"),
+
+  // Interpreter timeout in seconds.
+  "timeout_seconds" => 30,
+
+  // Reject code uploads larger than this.
+  "max_code_bytes" => 100000,
+
+  // Disable if the public instance should not store shared snippets.
+  "save_enabled" => true,
+);

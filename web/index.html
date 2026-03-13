@@ -2,9 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <title>Janus Playground</title>
+    <title>Jana Playground</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Write and run Janus programs in your browser">
+    <meta name="description" content="Write and run Jana programs in your browser">
     <meta name="author" content="Michael Budde and Claus Skou Nielsen">
 
     <link href="static/css/bootstrap.css" rel="stylesheet">
@@ -17,7 +17,7 @@
     <div class="navbar navbar-fixed-top">
       <div class="navbar-inner">
         <div class="container">
-          <a class="brand" href="">Janus Playground</a>
+          <a class="brand" href="">Jana Playground</a>
           <ul class="nav pull-right">
             <li><button id="run" class="btn btn-success"><i class="icon-play-circle icon-white"></i> Run</button></button></li>
             <li><button id="share" class="btn"><i class="icon-share"></i> Share</button></button></li>
@@ -56,11 +56,11 @@
     <div id="about" class="modal hide fade">
       <div class="modal-header">
         <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
-        <h3>About the Janus Playground</h3>
+        <h3>About the Jana Playground</h3>
       </div>
       <div class="modal-body">
-        <p>The Playground lets you try out the Janus programming language in your browser without having to install anything. When you click "Run" the program is sent to the server where it is executed and the result is returned.</p>
-        <p>The Janus Playground has been created by Claus Skou Nielsen and Michael Budde as part of their Bachelor Thesis.</p>
+        <p>The Playground lets you try out the Jana interpreter from this repository in your browser without having to install anything. When you click "Run" the program is sent to the server, executed by the Python backend in <code>src-python/</code>, and the result is returned.</p>
+        <p>This web UI is based on the original Janus playground and has been adapted to run the current Python implementation.</p>
         <h3>Usage</h3>
         <p>You can load example programs by clicking on the <b>Examples</b> dropdown in the menu and selecting an example which will then be loaded into the text area.</p>
         <p>The code in the text area can be run by pressing the <b>Run</b> button in the menu and the output will appear in a seperate pane below the text area.</p>
@@ -96,15 +96,5 @@
     <script src="static/js/bootstrap.min.js"></script>
     <script src="static/js/ace/ace.js"></script>
     <script src="static/js/playground.js"></script>
-    <script>
-      (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-      (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-      m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-      })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
-
-      ga('create', 'UA-41256642-1', 'diku.dk');
-      ga('send', 'pageview');
-
-    </script>
   </body>
 </html>

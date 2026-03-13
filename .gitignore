@@ -19,3 +19,6 @@ stack.yaml
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Web deployment local config
+web/config.php

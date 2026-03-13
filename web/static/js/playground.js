@@ -28,7 +28,7 @@ $(function(){
   function loadCode(hash) {
     var match = hash.match(/#examples\/([a-zA-Z0-9-]+)/);
     if (match) {
-      $.get("examples/" + match[1] + ".ja").done(setEditorContent);
+      $.get("load.php", {example: match[1]}).done(setEditorContent);
       return;
     }
 
