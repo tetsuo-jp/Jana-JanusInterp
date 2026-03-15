@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <base href="/janus-playground/">
+    <title>Jana Weekly Update</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Summary of Jana extensions added during the last week">
+    <meta name="author" content="Jana contributors">
+
+    <link href="static/css/bootstrap.css" rel="stylesheet">
+    <link href="static/css/bootstrap-responsive.css" rel="stylesheet">
+    <style>
+      body {
+        padding-top: 60px;
+        padding-bottom: 40px;
+      }
+
+      .hero-unit {
+        padding: 32px;
+      }
+
+      .summary-list li {
+        margin-bottom: 8px;
+      }
+
+      .timeline dt {
+        margin-top: 18px;
+      }
+
+      .timeline dd {
+        margin-left: 0;
+        margin-bottom: 12px;
+      }
+
+      .code {
+        font-family: monospace;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="navbar navbar-fixed-top">
+      <div class="navbar-inner">
+        <div class="container">
+          <a class="brand" href="index.html">Jana Playground</a>
+          <ul class="nav pull-right">
+            <li><a href="index.html">Open Playground</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="container">
+      <div class="hero-unit">
+        <h1>Weekly Extension Summary</h1>
+        <p>
+          This page summarizes the parts extended during the last week
+          (based on commits from 2026-03-13 through 2026-03-15).
+        </p>
+        <p>
+          The main theme was turning the Python implementation under
+          <code>src-python/</code> into a release-candidate interpreter with a
+          browser playground and broader language coverage.
+        </p>
+        <p>
+          <a class="btn btn-primary btn-large" href="index.html">Try the playground</a>
+        </p>
+      </div>
+
+      <div class="row">
+        <div class="span4">
+          <h2>1. Python parity reached release-candidate state</h2>
+          <p>
+            The Python interpreter now covers the main parity backlog against the
+            Haskell reference implementation.
+          </p>
+          <ul class="summary-list">
+            <li>Debugger reverse stepping was aligned for deeper step-back flows.</li>
+            <li><code>from</code>, <code>iterate</code>, <code>local</code>, and procedure-boundary reverse behavior were matched.</li>
+            <li>Error and backward type behavior were checked against Haskell-observed output.</li>
+            <li>A one-command release-candidate verification entrypoint was documented.</li>
+          </ul>
+        </div>
+
+        <div class="span4">
+          <h2>2. New frontend-accessible language features</h2>
+          <p>
+            The Python backend picked up several extensions that are now available
+            through the web playground as well.
+          </p>
+          <ul class="summary-list">
+            <li>Preprocessor support: object macros, function macros, includes, source maps, escapes, and conditionals.</li>
+            <li><code>struct</code> support: declarations, field access, updates, procedure arguments, formatting, and validation.</li>
+            <li>Extended example coverage, including <code>examples/build-dict.ja</code> for combined macro and struct usage.</li>
+          </ul>
+        </div>
+
+        <div class="span4">
+          <h2>3. Browser playground for <code>src-python/</code></h2>
+          <p>
+            The existing web UI was wired to the Python interpreter so the current
+            implementation can be used from a browser.
+          </p>
+          <ul class="summary-list">
+            <li><code>execute.php</code> runs <code>python3 -m jana_py.cli</code>.</li>
+            <li><code>load.php</code> serves example programs.</li>
+            <li><code>save.php</code> stores shareable snippets.</li>
+            <li>The UI keeps support for invert mode and 32-bit modular integers.</li>
+          </ul>
+        </div>
+      </div>
+
+      <hr>
+
+      <div class="row">
+        <div class="span6">
+          <h2>Detailed highlights</h2>
+          <dl class="timeline">
+            <dt>2026-03-13 &mdash; Python parity implementation landed</dt>
+            <dd>
+              Added the main Python interpreter modules, parity-focused tests,
+              debugger coverage, control-flow parity checks, and the
+              <span class="code">run_release_candidate.py</span> wrapper for
+              concise verification.
+            </dd>
+
+            <dt>2026-03-13 &mdash; Web playground prepared for the Python backend</dt>
+            <dd>
+              Added the PHP execution endpoint, example loader, share endpoint,
+              deployment notes, and the browser UI integration needed to execute
+              <span class="code">src-python/</span> programs online.
+            </dd>
+
+            <dt>2026-03-13 &mdash; Debugger internals cleaned up</dt>
+            <dd>
+              Refactored step-state helper logic in the runtime to keep debugger
+              behavior stable while making the implementation easier to maintain.
+            </dd>
+
+            <dt>2026-03-15 &mdash; Parser and test alignment follow-up</dt>
+            <dd>
+              Follow-up fixes aligned parser EOF positioning and test expectations
+              with the Haskell reference, while also finalizing the preprocess and
+              struct-related test surfaces.
+            </dd>
+          </dl>
+        </div>
+
+        <div class="span6">
+          <h2>What this means for users</h2>
+          <ul class="summary-list">
+            <li>You can now run the current Python Jana implementation from the browser instead of only from the CLI.</li>
+            <li>More programs parse and execute thanks to preprocess and struct support.</li>
+            <li>Debugger behavior and failure reporting are closer to the Haskell interpreter.</li>
+            <li>There is a clearer verification path for future releases and regressions.</li>
+          </ul>
+
+          <h2>Useful entry points</h2>
+          <ul class="summary-list">
+            <li>Playground: <a href="index.html">index.html</a></li>
+            <li>Release-candidate checks: <code>python3 src-python/tests/run_release_candidate.py</code></li>
+            <li>Representative example: <code>examples/build-dict.ja</code></li>
+            <li>Deployment notes: <code>docs/web-publish.md</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
