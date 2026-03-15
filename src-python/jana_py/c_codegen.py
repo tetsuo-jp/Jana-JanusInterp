@@ -35,6 +35,7 @@ from .ast import TypeCastExpr
 from .ast import UnaryExpr
 from .ast import UncallStmt
 from .ast import UserErrorStmt
+from .ast import Ident
 from .ast import Vdecl
 
 
@@ -53,11 +54,23 @@ C_TYPES = {
 }
 
 
+def format_struct_def(sdef) -> str:
+  lines = [f"struct {sdef.ident.name} {{"]
+  for field in sdef.fields:
+    dims = "".join(f"[{format_expr(d)}]" for d in field.dimensions if d is not None) if field.dimensions else ""
+    lines.append(f"  {format_type(field.typ)} {field.ident.name}{dims};")
+  lines.append("};")
+  return "\n".join(lines)
+
+
 def format_program(header: str | None, program: Program) -> str:
   lines = ["#include <iostream>", "#include <utility>"]
   if header:
     lines.append(f'#include "{header}"')
   lines.append("")
+  for sdef in program.struct_defs:
+    lines.append(format_struct_def(sdef))
+    lines.append("")
   for proc in program.procs:
     lines.append(format_proc(proc))
     lines.append("")
@@ -101,6 +114,10 @@ def format_vdecl(vdecl: Vdecl) -> str:
 def format_type(typ: Type) -> str:
   if typ.is_char:
     return "char"
+  if typ.kind == "struct":
+    return typ.name or "struct"
+  if typ.kind == "bool":
+    return "bool"
   if typ.kind != "int":
     raise ValueError(f"C++ translation does not support {typ.kind}")
   return C_TYPES[typ.int_type.value]
@@ -152,9 +169,9 @@ def format_stmt(stmt, indent: int) -> list[str]:
     if stmt.prints.kind == "print":
       return [f'{pad}std::cout << "{escape_cpp(stmt.prints.text or "")}";']
     if stmt.prints.kind == "printf":
-      parts = render_printf(stmt.prints.text or "", [ident.name for ident in stmt.prints.idents])
+      parts = render_printf(stmt.prints.text or "", [_fmt_arg(a) for a in stmt.prints.args])
       return [f"{pad}std::cout << {parts};"]
-    expr = ' << " " << '.join(stmt.prints.idents[i].name for i in range(len(stmt.prints.idents)))
+    expr = ' << " " << '.join(_fmt_arg(a) for a in stmt.prints.args)
     return [f'{pad}std::cout << {expr};']
   if isinstance(stmt, SkipStmt):
     return [f"{pad};"]
@@ -211,6 +228,12 @@ def format_expr(expr: Expr) -> str:
   if isinstance(expr, (EmptyExpr, TopExpr, NilExpr)):
     raise ValueError("Stack expressions are not supported in generated C++")
   raise ValueError(f"Unsupported expression {type(expr).__name__}")
+
+
+def _fmt_arg(arg) -> str:
+  if isinstance(arg, Ident):
+    return arg.name
+  return format_lval(arg)
 
 
 def render_printf(text: str, args: list[str]) -> str:

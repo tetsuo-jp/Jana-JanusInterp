@@ -209,17 +209,24 @@ def format_stmt(stmt, indent: int) -> str:
     if stmt.prints.kind == "print":
       return f'{pad}print("{_escape(stmt.prints.text or "")}")'
     if stmt.prints.kind == "printf":
-      args = ", ".join(ident.name for ident in stmt.prints.idents)
+      args = ", ".join(_format_print_arg(a) for a in stmt.prints.args)
       if args:
         return f'{pad}printf("{_escape(stmt.prints.text or "")}", {args})'
       return f'{pad}printf("{_escape(stmt.prints.text or "")}")'
-    args = ", ".join(ident.name for ident in stmt.prints.idents)
+    args = ", ".join(_format_print_arg(a) for a in stmt.prints.args)
     return f"{pad}show({args})"
   if isinstance(stmt, SkipStmt):
     return f"{pad}skip"
   if isinstance(stmt, AssertStmt):
     return f"{pad}assert {format_expr(stmt.expr)}"
   raise TypeError(f"Unsupported stmt: {type(stmt)!r}")
+
+
+def _format_print_arg(arg) -> str:
+  from .ast import Ident, Lval
+  if isinstance(arg, Ident):
+    return arg.name
+  return format_lval(arg)
 
 
 def format_lval(lval: Lval) -> str:

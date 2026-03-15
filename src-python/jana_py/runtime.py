@@ -781,11 +781,19 @@ class Runtime:
       self.stdout.append((prints.text or "") + "\n")
       return
     if prints.kind == "show":
-      rendered = ", ".join(self._format_vdecl(ident.name, self._resolve_var(frame, ident.name)) for ident in prints.idents)
-      self.stdout.append(rendered + "\n")
+      parts = []
+      for arg in prints.args:
+        if isinstance(arg, Lval):
+          name = self._format_lval_name(arg)
+          cell = self._resolve_lval(frame, arg)
+        else:
+          name = arg.name
+          cell = self._resolve_var(frame, arg.name)
+        parts.append(self._format_vdecl(name, cell))
+      self.stdout.append(", ".join(parts) + "\n")
       return
     text = prints.text or ""
-    cells = [self._resolve_var(frame, ident.name) for ident in prints.idents]
+    cells = [self._resolve_lval(frame, arg) if isinstance(arg, Lval) else self._resolve_var(frame, arg.name) for arg in prints.args]
     values = [cell.value for cell in cells]
     value_index = 0
     pieces: list[str] = []
@@ -1466,6 +1474,16 @@ class Runtime:
       cell = frame.vars[name]
       entries.append(self._format_vdecl(name, cell))
     return "\n".join(entries)
+
+  @staticmethod
+  def _format_lval_name(lval: Lval) -> str:
+    parts = [lval.ident.name]
+    for sel in lval.selectors:
+      if isinstance(sel, LvalField):
+        parts.append(f".{sel.ident.name}")
+      elif isinstance(sel, LvalIndex):
+        parts.append(f"[?]")
+    return "".join(parts)
 
   def _format_vdecl(self, name: str, cell: Cell) -> str:
     if cell.kind == "array" and cell.shape is not None:

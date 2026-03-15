@@ -233,7 +233,7 @@ class LocalDecl:
 class Prints:
   kind: str
   text: str | None = None
-  idents: list[Ident] = field(default_factory=list)
+  args: list[Ident | Lval] = field(default_factory=list)
 
 
 class Stmt:

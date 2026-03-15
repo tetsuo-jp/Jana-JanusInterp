@@ -506,22 +506,29 @@ class Parser:
     pos = self.expect_kw("printf").pos
     self.expect_op("(")
     text = self.parse_string()
-    idents: list[Ident] = []
+    args: list[Ident | Lval] = []
     if self.tokens.match("OP", ","):
-      idents.append(self.parse_ident())
+      args.append(self._parse_printf_arg())
       while self.tokens.match("OP", ","):
-        idents.append(self.parse_ident())
+        args.append(self._parse_printf_arg())
     self.expect_op(")")
-    return PrintsStmt(Prints("printf", text=text, idents=idents), pos)
+    return PrintsStmt(Prints("printf", text=text, args=args), pos)
 
   def parse_show_stmt(self) -> PrintsStmt:
     pos = self.expect_kw("show").pos
     self.expect_op("(")
-    idents = [self.parse_ident()]
+    args: list[Ident | Lval] = [self._parse_printf_arg()]
     while self.tokens.match("OP", ","):
-      idents.append(self.parse_ident())
+      args.append(self._parse_printf_arg())
     self.expect_op(")")
-    return PrintsStmt(Prints("show", idents=idents), pos)
+    return PrintsStmt(Prints("show", args=args), pos)
+
+  def _parse_printf_arg(self) -> Ident | Lval:
+    """Parse a printf/show argument: simple ident or lvalue (arr[i], p.x)."""
+    lval = self.parse_lval()
+    if not lval.selectors:
+      return lval.ident
+    return lval
 
   def parse_skip_stmt(self) -> SkipStmt:
     pos = self.expect_kw("skip").pos
