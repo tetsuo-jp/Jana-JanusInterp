@@ -24,3 +24,7 @@ __pycache__/
 web/config.php
 web/programs/*
 !web/programs/.gitkeep
+
+# Local Copilot/Codex repo guidance
+AGENTS.md
+.codexignore
