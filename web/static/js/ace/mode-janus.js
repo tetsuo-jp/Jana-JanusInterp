@@ -56,18 +56,21 @@ oop.inherits(Mode, TextMode);
 
     var indentKeywords = {
         "procedure": 1,
+        "iterate": 1,
         "then": 1,
         "else": 1,
         "fi": -1,
         "do": 1,
         "loop": 1,
-        "until": -1
+        "until": -1,
+        "end": -1
     };
     var outdentKeywords = [
         "else",
         "fi",
         "loop",
-        "until"
+        "until",
+        "end"
     ];
 
 
@@ -156,7 +159,7 @@ var TextHighlightRules = require("./text_highlight_rules").TextHighlightRules;
 var JanusHighlightRules = function() {
     var keywords = (
         "procedure|if|then|else|fi|from|do|loop|until|" +
-        "local|delocal|call|uncall|skip"
+        "iterate|to|end|struct|local|delocal|call|uncall|skip"
     );
     var builtinConstants = ("nil|true|false");
     var types = ("int|stack");
@@ -176,6 +179,9 @@ var JanusHighlightRules = function() {
     this.$rules = {
         "start" : [
             {
+                token : "meta.preprocessor",
+                regex : "^\\s*#define\\b.*$"
+            }, {
                 token : "comment", // single line comment
                 regex : "\\/\\/.*$"
             }, {

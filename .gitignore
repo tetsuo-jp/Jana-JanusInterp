@@ -22,3 +22,5 @@ __pycache__/
 
 # Web deployment local config
 web/config.php
+web/programs/*
+!web/programs/.gitkeep
