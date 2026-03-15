@@ -143,5 +143,64 @@ class StructParseTests(unittest.TestCase):
     self.assertIn('"kind": "struct"', result.stdout)
 
 
+  def test_parse_struct_array_dims_before_name(self) -> None:
+    program = parse_program(
+      "struct_array.ja",
+      textwrap.dedent(
+        """\
+        struct Pair {
+            int x,
+            int y
+        }
+
+        procedure main()
+            Pair[3] ps
+            skip
+        """
+      ),
+    )
+    vdecl = program.main.vdecls[0]
+    self.assertEqual(vdecl.ident.name, "ps")
+    self.assertEqual(vdecl.typ.kind, "struct")
+    self.assertEqual(vdecl.typ.name, "Pair")
+    self.assertEqual(len(vdecl.dimensions), 1)
+
+  def test_parse_struct_2d_array_dims_before_name(self) -> None:
+    program = parse_program(
+      "struct_2d.ja",
+      textwrap.dedent(
+        """\
+        struct Pair {
+            int x,
+            int y
+        }
+
+        procedure main()
+            Pair[2][2] ps
+            skip
+        """
+      ),
+    )
+    vdecl = program.main.vdecls[0]
+    self.assertEqual(vdecl.ident.name, "ps")
+    self.assertEqual(len(vdecl.dimensions), 2)
+
+  def test_format_round_trip_struct_array(self) -> None:
+    source = textwrap.dedent(
+      """\
+      struct Pair {
+          int x,
+          int y
+      }
+
+      procedure main()
+          Pair ps[3]
+          skip
+      """
+    )
+    program = parse_program("struct_arr_rt.ja", source)
+    self.assertEqual(format_program(program), source)
+
+
 if __name__ == "__main__":
   unittest.main()

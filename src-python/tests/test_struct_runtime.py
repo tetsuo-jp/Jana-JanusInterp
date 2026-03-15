@@ -148,6 +148,74 @@ class StructRuntimeTests(unittest.TestCase):
     self.assertEqual(runtime._root_frame.vars["d"].value["size"], 3)
     self.assertEqual(runtime._root_frame.vars["d"].value["entries"], [{"k": 0}, {"k": 6}, {"k": 0}])
 
+  def test_struct_array_dims_before_name_works(self) -> None:
+    runtime = self.runtime_for(
+      """\
+      struct Pair {
+          int x,
+          int y
+      }
+
+      procedure main()
+          Pair[3] ps
+          ps[0].x += 10
+          ps[1].y += 20
+          ps[2].x += 30
+      """
+    )
+    runtime.run()
+    assert runtime._root_frame is not None
+    cell = runtime._root_frame.vars["ps"]
+    self.assertEqual(cell.kind, "array")
+    self.assertEqual(cell.shape, [3])
+    self.assertEqual(cell.elem_struct_name, "Pair")
+    self.assertEqual(cell.value, [{"x": 10, "y": 0}, {"x": 0, "y": 20}, {"x": 30, "y": 0}])
+
+  def test_struct_2d_array_access(self) -> None:
+    runtime = self.runtime_for(
+      """\
+      struct Pair {
+          int x,
+          int y
+      }
+
+      procedure main()
+          Pair[2][2] ps
+          ps[0][1].x += 5
+          ps[1][0].y += 7
+      """
+    )
+    runtime.run()
+    assert runtime._root_frame is not None
+    cell = runtime._root_frame.vars["ps"]
+    self.assertEqual(cell.shape, [2, 2])
+    self.assertEqual(cell.value[1]["x"], 5)
+    self.assertEqual(cell.value[2]["y"], 7)
+
+  def test_struct_array_procedure_call(self) -> None:
+    runtime = self.runtime_for(
+      """\
+      struct Pair {
+          int x,
+          int y
+      }
+
+      procedure bump(Pair ps[2])
+          ps[0].x += 1
+          ps[1].y += 2
+
+      procedure main()
+          Pair[2] ps
+          call bump(ps)
+      """
+    )
+    runtime.run()
+    assert runtime._root_frame is not None
+    self.assertEqual(
+      runtime._root_frame.vars["ps"].value,
+      [{"x": 1, "y": 0}, {"x": 0, "y": 2}],
+    )
+
   def test_ternary_expression_selects_branch(self) -> None:
     runtime = self.runtime_for(
       """\

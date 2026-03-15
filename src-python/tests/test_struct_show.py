@@ -78,5 +78,25 @@ class StructShowTests(unittest.TestCase):
     self.assertEqual(result.stderr, "")
 
 
+  def test_show_struct_array_from_bracket_syntax(self) -> None:
+    result = self.run_case(
+      """\
+      struct Pair {
+          int x,
+          int y
+      }
+
+      procedure main()
+          Pair[2] ps
+          ps[0].x += 1
+          ps[1].y += 2
+          show(ps)
+      """
+    )
+    self.assertEqual(result.returncode, 0)
+    self.assertIn("ps[2] = {{x = 1, y = 0}, {x = 0, y = 2}}", result.stdout)
+    self.assertEqual(result.stderr, "")
+
+
 if __name__ == "__main__":
   unittest.main()

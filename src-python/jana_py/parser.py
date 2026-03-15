@@ -693,8 +693,20 @@ class Parser:
       idx += 1
     token = self.tokens.tokens[idx]
     if token.kind == "IDENT":
-      next_token = self.tokens.tokens[idx + 1]
-      return next_token.kind == "IDENT"
+      next_idx = idx + 1
+      # Skip bracket pairs for struct array dimensions: Pair[3] ps, Pair[2][2] ps
+      while (next_idx < len(self.tokens.tokens)
+             and self.tokens.tokens[next_idx].kind == "OP"
+             and self.tokens.tokens[next_idx].value == "["):
+        depth = 1
+        next_idx += 1
+        while next_idx < len(self.tokens.tokens) and depth > 0:
+          v = self.tokens.tokens[next_idx].value
+          if v == "[": depth += 1
+          elif v == "]": depth -= 1
+          next_idx += 1
+      return (next_idx < len(self.tokens.tokens)
+              and self.tokens.tokens[next_idx].kind == "IDENT")
     return token.kind == "KW" and token.value in set(TYPE_KEYWORDS) | {"stack", "bool", "char", "string"}
 
   def _looks_like_type_cast(self) -> bool:

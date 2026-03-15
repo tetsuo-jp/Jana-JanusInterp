@@ -39,6 +39,7 @@ Recommended execution order:
 | 5 | Procedure argument passing for structs | done | `src-python/jana_py/runtime.py`, `src-python/jana_py/validate.py` | `python3 -m pytest -q src-python/tests/test_struct_runtime.py` | structs can be passed to procedures with field updates visible to caller |
 | 6 | `show` and final store formatting | done | `src-python/jana_py/runtime.py`, `src-python/jana_py/format.py` | `python3 -m pytest -q src-python/tests/test_struct_show.py` | struct values render with field names in `show` and final store output |
 | 7 | Validation and error surfaces | done | `src-python/jana_py/validate.py`, `src-python/jana_py/errors.py` | `python3 -m pytest -q src-python/tests/test_struct_errors.py` | duplicate fields, unknown fields, and type mismatches fail with stable messages |
+| 8 | Arrays of struct variables (`Pair[3] ps`) | done | `src-python/jana_py/parser.py` | `python3 -m pytest -q src-python/tests/test_struct_parse.py src-python/tests/test_struct_runtime.py src-python/tests/test_struct_show.py` | `_starts_vdecl()` recognizes struct arrays; 1D/2D/procedure params all work |
 
 Starter examples:
 
