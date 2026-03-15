@@ -162,7 +162,7 @@ var JanusHighlightRules = function() {
         "iterate|to|end|struct|local|delocal|call|uncall|skip"
     );
     var builtinConstants = ("nil|true|false");
-    var types = ("int|stack");
+    var types = ("int|stack|string");
     var builtinFunctions = (
         "empty|top|size|push|pop|error|" +
         "show|print|printf"

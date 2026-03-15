@@ -59,7 +59,7 @@ from .preprocess import LineOrigin
 
 KEYWORDS = {
   "procedure", "main", "int", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64",
-  "char", "struct",
+  "char", "string", "struct",
   "ancilla", "constant", "bool", "true", "false", "if", "then", "else", "fi",
   "from", "do", "loop", "until", "push", "pop", "local", "delocal", "call", "uncall",
   "external", "error", "skip", "stack", "empty", "top", "size", "show", "print",
@@ -292,7 +292,7 @@ class Parser:
     if token.value in TYPE_KEYWORDS:
       self.tokens.consume()
       return Type("int", token.pos, TYPE_KEYWORDS[token.value])
-    if token.value == "char":
+    if token.value in {"char", "string"}:
       self.tokens.consume()
       return Type("int", token.pos, IntType.U8, is_char=True)
     if token.value == "stack":
@@ -695,12 +695,12 @@ class Parser:
     if token.kind == "IDENT":
       next_token = self.tokens.tokens[idx + 1]
       return next_token.kind == "IDENT"
-    return token.kind == "KW" and token.value in set(TYPE_KEYWORDS) | {"stack", "bool", "char"}
+    return token.kind == "KW" and token.value in set(TYPE_KEYWORDS) | {"stack", "bool", "char", "string"}
 
   def _looks_like_type_cast(self) -> bool:
     idx = self.tokens.index + 1
     token = self.tokens.tokens[idx]
-    return token.kind == "KW" and token.value in set(TYPE_KEYWORDS) | {"stack", "bool", "char"}
+    return token.kind == "KW" and token.value in set(TYPE_KEYWORDS) | {"stack", "bool", "char", "string"}
 
 
 def parse_program(filename: str, text: str, line_origins: Sequence[LineOrigin] | None = None) -> Program:

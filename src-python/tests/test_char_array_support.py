@@ -106,6 +106,30 @@ class CharArraySupportTests(unittest.TestCase):
     self.assertEqual(result.stdout, "s[5] = {97, 98, 99, 0, 0}\n")
     self.assertEqual(result.stderr, "")
 
+  def test_string_alias_fixed_size_accepts_string_initializer(self) -> None:
+    result = self.run_case(
+      """\
+      procedure main()
+          string in[9] = "bananana"
+          printf("%s", in)
+      """
+    )
+    self.assertEqual(result.returncode, 0)
+    self.assertEqual(result.stdout, "bananana\nin[9] = {98, 97, 110, 97, 110, 97, 110, 97, 0}\n")
+    self.assertEqual(result.stderr, "")
+
+  def test_string_alias_infers_size_from_string_initializer(self) -> None:
+    result = self.run_case(
+      """\
+      procedure main()
+          string in[] = "bananana"
+          printf("%s", in)
+      """
+    )
+    self.assertEqual(result.returncode, 0)
+    self.assertEqual(result.stdout, "bananana\nin[9] = {98, 97, 110, 97, 110, 97, 110, 97, 0}\n")
+    self.assertEqual(result.stderr, "")
+
   def test_local_char_array_round_trips(self) -> None:
     result = self.run_case(
       """\
