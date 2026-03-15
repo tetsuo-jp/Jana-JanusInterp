@@ -47,4 +47,21 @@ Or, to run it directly using stack, use
     cd src/
     stack exec -- runhaskell Main.hs
 
+## Python Interpreter
+
+The repository also contains a Python implementation under `src-python/`.
+To run it from the repository root, set `PYTHONPATH` to `src-python` and invoke
+the CLI module directly:
+
+    PYTHONPATH=src-python python3 -m jana_py.cli examples/fib.ja
+
+You can also pass the existing CLI flags, for example:
+
+    PYTHONPATH=src-python python3 -m jana_py.cli -i examples/fib.ja
+    PYTHONPATH=src-python python3 -m jana_py.cli -d examples/fib.ja
+
+To run the Python-side regression wrapper, use:
+
+    python3 src-python/tests/run_release_candidate.py
+
 Python-side extended examples live under `examples/`; `examples/build-dict.ja` exercises preprocessor macros, ternary expressions, and struct array fields added in the Python implementation.
