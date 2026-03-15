@@ -14,6 +14,8 @@ from .ast import IfStmt
 from .ast import IterateStmt
 from .ast import LocalStmt
 from .ast import Lval
+from .ast import LvalField
+from .ast import LvalIndex
 from .ast import LvalExpr
 from .ast import NilExpr
 from .ast import Number
@@ -24,7 +26,9 @@ from .ast import Program
 from .ast import PushStmt
 from .ast import SizeExpr
 from .ast import SkipStmt
+from .ast import StringLiteral
 from .ast import SwapStmt
+from .ast import TernaryExpr
 from .ast import TopExpr
 from .ast import Type
 from .ast import TypeCastExpr
@@ -95,6 +99,8 @@ def format_vdecl(vdecl: Vdecl) -> str:
 
 
 def format_type(typ: Type) -> str:
+  if typ.is_char:
+    return "char"
   if typ.kind != "int":
     raise ValueError(f"C++ translation does not support {typ.kind}")
   return C_TYPES[typ.int_type.value]
@@ -171,7 +177,13 @@ def format_local_decl(decl) -> str:
 
 
 def format_lval(lval: Lval) -> str:
-  return lval.ident.name + "".join(f"[{format_expr(idx)}]" for idx in lval.indices)
+  parts = [lval.ident.name]
+  for selector in lval.selectors:
+    if isinstance(selector, LvalField):
+      parts.append(f".{selector.ident.name}")
+    elif isinstance(selector, LvalIndex):
+      parts.append(f"[{format_expr(selector.expr)}]")
+  return "".join(parts)
 
 
 def format_expr(expr: Expr) -> str:
@@ -188,10 +200,14 @@ def format_expr(expr: Expr) -> str:
   if isinstance(expr, BinExpr):
     op = "==" if expr.op.value == "=" else expr.op.value
     return f"({format_expr(expr.left)} {op} {format_expr(expr.right)})"
+  if isinstance(expr, TernaryExpr):
+    return f"({format_expr(expr.cond)} ? {format_expr(expr.then_expr)} : {format_expr(expr.else_expr)})"
   if isinstance(expr, SizeExpr):
     return f"{expr.ident.name}.size()"
   if isinstance(expr, ArrayExpr):
     return "{ " + ", ".join(format_expr(item) for item in expr.items) + " }"
+  if isinstance(expr, StringLiteral):
+    return f'"{escape_cpp(expr.value)}"'
   if isinstance(expr, (EmptyExpr, TopExpr, NilExpr)):
     raise ValueError("Stack expressions are not supported in generated C++")
   raise ValueError(f"Unsupported expression {type(expr).__name__}")
@@ -206,7 +222,7 @@ def render_printf(text: str, args: list[str]) -> str:
       kind = text[i + 1]
       if kind == "%":
         rendered.append(f'"%"')
-      elif kind == "d":
+      elif kind in {"d", "s"}:
         rendered.append(args[arg_index])
         arg_index += 1
       i += 2
@@ -219,4 +235,4 @@ def render_printf(text: str, args: list[str]) -> str:
 
 
 def escape_cpp(text: str) -> str:
-  return text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
+  return text.replace("\\", "\\\\").replace('"', '\\"').replace("\0", "\\0").replace("\n", "\\n")

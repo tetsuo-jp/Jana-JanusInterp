@@ -54,19 +54,19 @@ class M2Tests(unittest.TestCase):
     try:
       result = run_python(str(tmp_path))
       self.assertEqual(result.returncode, 0, result.stderr)
-      self.assertEqual(result.stdout, "0 8 13\n")
+      self.assertEqual(result.stdout, "0 8 13\n\nn = 0\nx1 = 8\nx2 = 13\n")
     finally:
       tmp_path.unlink(missing_ok=True)
 
   def test_division_by_zero(self) -> None:
     result = run_python("tests/errors/division-by-zero.ja")
     self.assertNotEqual(result.returncode, 0)
-    self.assertIn("Division by zero", result.stderr)
+    self.assertIn("Division by zero", result.stdout)
 
   def test_no_main_proc(self) -> None:
     result = run_python("tests/errors/no-main-proc.ja")
     self.assertNotEqual(result.returncode, 0)
-    self.assertIn("No main procedure has been defined", result.stderr)
+    self.assertIn("No main procedure has been defined", result.stdout)
 
 
 if __name__ == "__main__":

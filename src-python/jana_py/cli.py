@@ -11,6 +11,7 @@ import signal
 from .format import format_program
 from .invert import invert_program
 from .parser import parse_program
+from .preprocess import preprocess_text
 from .c_codegen import format_program as format_c_program
 from .errors import JanaError
 from .runtime import Runtime
@@ -93,10 +94,11 @@ def main(argv: list[str] | None = None) -> int:
   timeout_sec = int(args.timeout) if args.timeout not in {None, ""} else -1
   timeout_enabled = timeout_sec > 0
   try:
+    preprocessed = preprocess_text(args.file, text)
     if timeout_enabled:
       signal.signal(signal.SIGALRM, _timeout_handler)
       signal.alarm(timeout_sec)
-    program = parse_program(args.file, text)
+    program = parse_program(args.file, preprocessed.text, preprocessed.line_origins)
     validate_program(program)
     if args.invert:
       program = invert_program(program)

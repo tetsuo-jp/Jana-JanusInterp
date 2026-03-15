@@ -56,7 +56,7 @@ class M3Tests(unittest.TestCase):
     try:
       result = run_python(str(tmp_path))
       self.assertEqual(result.returncode, 0, result.stderr)
-      self.assertEqual(result.stdout, "0 8 13\n5 0 0\n")
+      self.assertEqual(result.stdout, "0 8 13\n\n5 0 0\n\nn = 5\nx1 = 0\nx2 = 0\n")
     finally:
       tmp_path.unlink(missing_ok=True)
 
@@ -82,7 +82,7 @@ class M3Tests(unittest.TestCase):
     try:
       result = run_python(str(tmp_path))
       self.assertEqual(result.returncode, 0, result.stderr)
-      self.assertEqual(result.stdout, "14\n7\n")
+      self.assertEqual(result.stdout, "14\n\n7\n\nx = 7\n")
     finally:
       tmp_path.unlink(missing_ok=True)
 

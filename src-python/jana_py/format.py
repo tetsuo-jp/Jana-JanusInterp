@@ -16,6 +16,8 @@ from .ast import IterateStmt
 from .ast import LocalDecl
 from .ast import LocalStmt
 from .ast import Lval
+from .ast import LvalField
+from .ast import LvalIndex
 from .ast import LvalExpr
 from .ast import NilExpr
 from .ast import Number
@@ -27,7 +29,11 @@ from .ast import Program
 from .ast import PushStmt
 from .ast import SizeExpr
 from .ast import SkipStmt
+from .ast import StringLiteral
+from .ast import StructDef
+from .ast import StructField
 from .ast import SwapStmt
+from .ast import TernaryExpr
 from .ast import TopExpr
 from .ast import Type
 from .ast import TypeCastExpr
@@ -85,14 +91,30 @@ BIN_PREC = {
 
 UNARY_PREC = 5
 CAST_PREC = 6
+TERNARY_PREC = -1
 
 
 def format_program(program: Program) -> str:
   blocks: list[str] = []
+  blocks.extend(format_struct_def(struct_def) for struct_def in program.struct_defs)
   if program.main is not None:
     blocks.append(format_main(program.main))
   blocks.extend(format_proc(proc) for proc in program.procs)
   return "\n\n".join(blocks) + "\n"
+
+
+def format_struct_def(struct_def: StructDef) -> str:
+  lines = [f"struct {struct_def.ident.name} {{"]
+  for index, field in enumerate(struct_def.fields):
+    suffix = "," if index < len(struct_def.fields) - 1 else ""
+    lines.append(f"    {format_struct_field(field)}{suffix}")
+  lines.append("}")
+  return "\n".join(lines)
+
+
+def format_struct_field(field: StructField) -> str:
+  dims = "".join(f"[{format_expr(dim) if dim is not None else ''}]" for dim in field.dimensions)
+  return f"{format_type(field.typ)} {field.ident.name}{dims}"
 
 
 def format_main(main: ProcMain) -> str:
@@ -126,6 +148,10 @@ def _format_decl(decl_type: DeclType, typ: Type, ident: str, dimensions: list[Ex
 
 
 def format_type(typ: Type) -> str:
+  if typ.is_char:
+    return "char"
+  if typ.kind == "struct":
+    return typ.name or "struct"
   if typ.kind == "int":
     return TYPE_NAMES["int"][typ.int_type.value]
   return TYPE_NAMES[typ.kind]
@@ -197,7 +223,13 @@ def format_stmt(stmt, indent: int) -> str:
 
 
 def format_lval(lval: Lval) -> str:
-  return lval.ident.name + "".join(f"[{format_expr(idx)}]" for idx in lval.indices)
+  parts = [lval.ident.name]
+  for selector in lval.selectors:
+    if isinstance(selector, LvalField):
+      parts.append(f".{selector.ident.name}")
+    elif isinstance(selector, LvalIndex):
+      parts.append(f"[{format_expr(selector.expr)}]")
+  return "".join(parts)
 
 
 def format_expr(expr: Expr, parent_prec: int = -1) -> str:
@@ -217,6 +249,8 @@ def format_expr(expr: Expr, parent_prec: int = -1) -> str:
     return "nil"
   if isinstance(expr, ArrayExpr):
     return "{ " + ", ".join(format_expr(item) for item in expr.items) + " }"
+  if isinstance(expr, StringLiteral):
+    return f'"{_escape(expr.value)}"'
   if isinstance(expr, UnaryExpr):
     text = expr.op.value + format_expr(expr.expr, UNARY_PREC)
     return f"({text})" if parent_prec > UNARY_PREC else text
@@ -227,9 +261,11 @@ def format_expr(expr: Expr, parent_prec: int = -1) -> str:
     prec = BIN_PREC[expr.op]
     text = f"{format_expr(expr.left, prec)} {expr.op.value} {format_expr(expr.right, prec)}"
     return f"({text})" if parent_prec > prec else text
+  if isinstance(expr, TernaryExpr):
+    text = f"{format_expr(expr.cond, TERNARY_PREC)} ? {format_expr(expr.then_expr, TERNARY_PREC)} : {format_expr(expr.else_expr, TERNARY_PREC)}"
+    return f"({text})" if parent_prec > TERNARY_PREC else text
   raise TypeError(f"Unsupported expr: {type(expr)!r}")
 
 
 def _escape(text: str) -> str:
-  return text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
-
+  return text.replace("\\", "\\\\").replace('"', '\\"').replace("\0", "\\u0000").replace("\n", "\\n")

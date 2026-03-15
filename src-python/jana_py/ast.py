@@ -69,6 +69,8 @@ class Type:
   kind: str
   pos: SourcePos
   int_type: IntType | None = None
+  is_char: bool = False
+  name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -77,10 +79,32 @@ class Ident:
   pos: SourcePos
 
 
+class LvalSelector:
+  pass
+
+
+@dataclass(frozen=True)
+class LvalIndex(LvalSelector):
+  expr: "Expr"
+
+
+@dataclass(frozen=True)
+class LvalField(LvalSelector):
+  ident: Ident
+
+
 @dataclass(frozen=True)
 class Lval:
   ident: Ident
-  indices: list["Expr"] = field(default_factory=list)
+  selectors: list[LvalSelector] = field(default_factory=list)
+
+  @property
+  def indices(self) -> list["Expr"]:
+    return [selector.expr for selector in self.selectors if isinstance(selector, LvalIndex)]
+
+  @property
+  def fields(self) -> list[Ident]:
+    return [selector.ident for selector in self.selectors if isinstance(selector, LvalField)]
 
 
 class Expr:
@@ -128,6 +152,14 @@ class BinExpr(Expr):
 
 
 @dataclass(frozen=True)
+class TernaryExpr(Expr):
+  cond: Expr
+  then_expr: Expr
+  else_expr: Expr
+  pos: SourcePos
+
+
+@dataclass(frozen=True)
 class EmptyExpr(Expr):
   ident: Ident
   pos: SourcePos
@@ -153,6 +185,27 @@ class NilExpr(Expr):
 @dataclass(frozen=True)
 class ArrayExpr(Expr):
   items: list[Expr]
+  pos: SourcePos
+
+
+@dataclass(frozen=True)
+class StringLiteral(Expr):
+  value: str
+  pos: SourcePos
+
+
+@dataclass(frozen=True)
+class StructField:
+  typ: Type
+  ident: Ident
+  pos: SourcePos
+  dimensions: list["Expr | None"] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class StructDef:
+  ident: Ident
+  fields: list[StructField]
   pos: SourcePos
 
 
@@ -310,4 +363,4 @@ class Proc:
 class Program:
   main: ProcMain | None
   procs: list[Proc]
-
+  struct_defs: list[StructDef] = field(default_factory=list)

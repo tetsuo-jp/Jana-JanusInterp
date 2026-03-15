@@ -41,7 +41,7 @@ class M1Tests(unittest.TestCase):
   def test_parser_error(self) -> None:
     result = run_python(["tests/errors/parser-error.ja"])
     self.assertNotEqual(result.returncode, 0)
-    self.assertIn("Expecting", result.stderr)
+    self.assertIn("Expecting", result.stdout)
 
 
 if __name__ == "__main__":

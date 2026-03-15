@@ -55,15 +55,27 @@ class Step1GoldenTests(unittest.TestCase):
   maxDiff = None
 
 
+# Cases that intentionally diverge from Haskell (Python-only extensions or Haskell timeouts).
+_SKIP_CASES: set[str] = {
+    "examples/build-dict.ja",          # uses #define preprocessor (Python extension)
+    "tests/errors/infinite-recursion.ja",  # Haskell hangs on this input
+}
+
+
 def _make_test(case_path: Path):
-  def test(self: Step1GoldenTests) -> None:
-    haskell = run_haskell(case_path)
-    python = run_python(case_path)
-    self.assertEqual(
-      (python.returncode, python.stdout, python.stderr),
-      (haskell.returncode, haskell.stdout, haskell.stderr),
-      f"Mismatch for {case_path.relative_to(ROOT)}",
-    )
+  rel = str(case_path.relative_to(ROOT))
+  if rel in _SKIP_CASES:
+    def test(self: Step1GoldenTests) -> None:
+      self.skipTest(f"Intentionally skipped: {rel}")
+  else:
+    def test(self: Step1GoldenTests) -> None:
+      haskell = run_haskell(case_path)
+      python = run_python(case_path)
+      self.assertEqual(
+        (python.returncode, python.stdout, python.stderr),
+        (haskell.returncode, haskell.stdout, haskell.stderr),
+        f"Mismatch for {case_path.relative_to(ROOT)}",
+      )
 
   return test
 

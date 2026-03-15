@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import json
 import re
 from enum import Enum
+from typing import Sequence
 
 from .ast import ArrayExpr
 from .ast import AssertStmt
@@ -23,6 +24,8 @@ from .ast import IterateStmt
 from .ast import LocalDecl
 from .ast import LocalStmt
 from .ast import Lval
+from .ast import LvalField
+from .ast import LvalIndex
 from .ast import LvalExpr
 from .ast import ModOp
 from .ast import NilExpr
@@ -37,7 +40,11 @@ from .ast import PushStmt
 from .ast import SizeExpr
 from .ast import SkipStmt
 from .ast import SourcePos
+from .ast import StringLiteral
+from .ast import StructDef
+from .ast import StructField
 from .ast import SwapStmt
+from .ast import TernaryExpr
 from .ast import TopExpr
 from .ast import Type
 from .ast import TypeCastExpr
@@ -47,10 +54,12 @@ from .ast import UncallStmt
 from .ast import UserErrorStmt
 from .ast import Vdecl
 from .errors import JanaError
+from .preprocess import LineOrigin
 
 
 KEYWORDS = {
   "procedure", "main", "int", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64",
+  "char", "struct",
   "ancilla", "constant", "bool", "true", "false", "if", "then", "else", "fi",
   "from", "do", "loop", "until", "push", "pop", "local", "delocal", "call", "uncall",
   "external", "error", "skip", "stack", "empty", "top", "size", "show", "print",
@@ -64,7 +73,7 @@ TOKEN_RE = re.compile(
   |(?P<MCOMMENT>/\*.*?\*/)
   |(?P<STRING>"(?:\\.|[^"\\])*")
   |(?P<NUMBER>0b[01]+|\d+)
-  |(?P<OP><=>|\+=|-=|\^=|<<|>>|<=|>=|!=|&&|\|\||\*\*|=|<|>|\+|-|\*|/|%|\^|&|\||!|,|\(|\)|\[|\]|\{|\})
+  |(?P<OP><=>|\+=|-=|\^=|<<|>>|<=|>=|!=|&&|\|\||\*\*|=|<|>|\+|-|\*|/|%|\^|&|\||!|,|\.|\?|:|\(|\)|\[|\]|\{|\})
   |(?P<IDENT>[A-Za-z][A-Za-z0-9_']*)
   |(?P<MISMATCH>.)
   """,
@@ -137,14 +146,17 @@ class TokenStream:
     return token
 
 
-def tokenize(filename: str, text: str) -> list[Token]:
+def tokenize(filename: str, text: str, line_origins: Sequence[LineOrigin] | None = None) -> list[Token]:
   line = 1
   col = 1
   tokens: list[Token] = []
   for match in TOKEN_RE.finditer(text):
     kind = match.lastgroup
     value = match.group()
-    pos = SourcePos(filename, line, col)
+    origin = None
+    if line_origins is not None and 1 <= line <= len(line_origins):
+      origin = line_origins[line - 1]
+    pos = SourcePos(origin.filename if origin is not None else filename, origin.line if origin is not None else line, col)
     line_breaks = value.count("\n")
     if line_breaks:
       col = len(value.rsplit("\n", 1)[-1]) + 1
@@ -157,18 +169,40 @@ def tokenize(filename: str, text: str) -> list[Token]:
       tokens.append(Token("KW", value, pos))
       continue
     tokens.append(Token(kind, value, pos))
-  tokens.append(Token("EOF", "", SourcePos(filename, line, col)))
+  origin = None
+  if line_origins is not None and line_origins:
+    idx = min(max(line - 1, 0), len(line_origins) - 1)
+    origin = line_origins[idx]
+  eof_line = line if col == 1 else line + 1
+  eof_col = 1
+  if line_origins is not None and line_origins:
+    last_idx = len(line_origins) - 1
+    last_origin = line_origins[last_idx]
+    # eof_line may be past the last mapped line; preserve the overshoot
+    overshoot = eof_line - len(line_origins)
+    if overshoot > 0:
+      origin = LineOrigin(filename=last_origin.filename, line=last_origin.line + overshoot)
+    else:
+      origin = line_origins[min(max(eof_line - 1, 0), last_idx)]
+  tokens.append(Token("EOF", "", SourcePos(origin.filename if origin is not None else filename, origin.line if origin is not None else eof_line, eof_col)))
   return tokens
 
 
 class Parser:
-  def __init__(self, filename: str, text: str):
-    self.tokens = TokenStream(tokenize(filename, text))
+  def __init__(self, filename: str, text: str, line_origins: Sequence[LineOrigin] | None = None):
+    self.tokens = TokenStream(tokenize(filename, text, line_origins))
+    self.struct_names: set[str] = set()
 
   def parse_program(self) -> Program:
+    struct_defs: list[StructDef] = []
     mains: list[ProcMain] = []
     procs: list[Proc] = []
     while self.tokens.peek().kind != "EOF":
+      if self.tokens.peek().kind == "KW" and self.tokens.peek().value == "struct":
+        struct_def = self.parse_struct_def()
+        struct_defs.append(struct_def)
+        self.struct_names.add(struct_def.ident.name)
+        continue
       proc_or_main = self.parse_procedure()
       if isinstance(proc_or_main, ProcMain):
         mains.append(proc_or_main)
@@ -176,7 +210,25 @@ class Parser:
         procs.append(proc_or_main)
     if len(mains) > 1:
       raise JanaError(self.tokens.peek().pos, 'Unexpected end of input\n    Expecting "procedure" or end of input\n    Multiple main procedures has been defined')
-    return Program(mains[0] if mains else None, procs)
+    return Program(mains[0] if mains else None, procs, struct_defs)
+
+  def parse_struct_def(self) -> StructDef:
+    pos = self.expect_kw("struct").pos
+    ident = self.parse_ident(allow_field_keywords=True)
+    self.expect_op("{")
+    fields = [self.parse_struct_field()]
+    while self.tokens.match("OP", ","):
+      fields.append(self.parse_struct_field())
+    self.expect_op("}")
+    return StructDef(ident, fields, pos)
+
+  def parse_struct_field(self) -> StructField:
+    pos = self.tokens.peek().pos
+    typ = self.parse_type()
+    dimensions = self._parse_decl_dimensions()
+    ident = self.parse_ident(allow_field_keywords=True)
+    dimensions = self._merge_decl_dimensions(dimensions, self._parse_decl_dimensions())
+    return StructField(typ, ident, pos, dimensions)
 
   def parse_procedure(self) -> ProcMain | Proc:
     self.expect_kw("procedure")
@@ -215,14 +267,9 @@ class Parser:
     pos = self.tokens.peek().pos
     decl_type = self.parse_decl_type()
     typ = self.parse_type()
+    dimensions = self._parse_decl_dimensions()
     ident = self.parse_ident()
-    dimensions: list[Expr | None] = []
-    while self.tokens.match("OP", "["):
-      if self.tokens.match("OP", "]"):
-        dimensions.append(None)
-      else:
-        dimensions.append(self.parse_expression())
-        self.expect_op("]")
+    dimensions = self._merge_decl_dimensions(dimensions, self._parse_decl_dimensions())
     init_expr = None
     if allow_init and self.tokens.match("OP", "="):
       init_expr = self.parse_array_or_expr()
@@ -237,11 +284,17 @@ class Parser:
 
   def parse_type(self) -> Type:
     token = self.tokens.peek()
+    if token.kind == "IDENT":
+      self.tokens.consume()
+      return Type("struct", token.pos, name=token.value)
     if token.kind != "KW":
       raise JanaError(token.pos, "Expecting type")
     if token.value in TYPE_KEYWORDS:
       self.tokens.consume()
       return Type("int", token.pos, TYPE_KEYWORDS[token.value])
+    if token.value == "char":
+      self.tokens.consume()
+      return Type("int", token.pos, IntType.U8, is_char=True)
     if token.value == "stack":
       self.tokens.consume()
       return Type("stack", token.pos)
@@ -403,14 +456,9 @@ class Parser:
 
   def parse_local_decl_with_known_type(self, decl_type: DeclType, pos: SourcePos) -> LocalDecl:
     typ = self.parse_type()
+    dimensions = self._parse_decl_dimensions()
     ident = self.parse_ident()
-    dimensions: list[Expr | None] = []
-    while self.tokens.match("OP", "["):
-      if self.tokens.match("OP", "]"):
-        dimensions.append(None)
-      else:
-        dimensions.append(self.parse_expression())
-        self.expect_op("]")
+    dimensions = self._merge_decl_dimensions(dimensions, self._parse_decl_dimensions())
     init_expr = None
     if self.tokens.match("OP", "="):
       init_expr = self.parse_array_or_expr()
@@ -485,7 +533,13 @@ class Parser:
     return AssertStmt(expr, pos)
 
   def parse_expression(self) -> Expr:
-    return self.parse_binary_level(0)
+    expr = self.parse_binary_level(0)
+    if self.tokens.match("OP", "?"):
+      then_expr = self.parse_expression()
+      self.expect_op(":")
+      else_expr = self.parse_expression()
+      return TernaryExpr(expr, then_expr, else_expr, expr.pos)
+    return expr
 
   def parse_binary_level(self, level: int) -> Expr:
     if level == len(BIN_PRECEDENCE):
@@ -572,22 +626,53 @@ class Parser:
   def parse_array_or_expr(self) -> Expr:
     if self.tokens.peek().kind == "OP" and self.tokens.peek().value == "{":
       return self.parse_array_expr()
+    if self.tokens.peek().kind == "STRING":
+      token = self.tokens.consume()
+      return StringLiteral(json.loads(token.value), token.pos)
     return self.parse_expression()
 
   def parse_lval(self) -> Lval:
     ident = self.parse_ident()
-    indices: list[Expr] = []
-    while self.tokens.match("OP", "["):
-      indices.append(self.parse_expression())
-      self.expect_op("]")
-    return Lval(ident, indices)
+    selectors = []
+    while True:
+      if self.tokens.match("OP", "."):
+        selectors.append(LvalField(self.parse_ident(allow_field_keywords=True)))
+        continue
+      if self.tokens.match("OP", "["):
+        selectors.append(LvalIndex(self.parse_expression()))
+        self.expect_op("]")
+        continue
+      break
+    return Lval(ident, selectors)
 
-  def parse_ident(self, allow_main: bool = False) -> Ident:
+  def _parse_decl_dimensions(self) -> list[Expr | None]:
+    dimensions: list[Expr | None] = []
+    while self.tokens.match("OP", "["):
+      if self.tokens.match("OP", "]"):
+        dimensions.append(None)
+      else:
+        dimensions.append(self.parse_expression())
+        self.expect_op("]")
+    return dimensions
+
+  def _merge_decl_dimensions(self, prefix: list[Expr | None], suffix: list[Expr | None]) -> list[Expr | None]:
+    merged = list(prefix)
+    remaining = list(suffix)
+    for index, dim in enumerate(merged):
+      if dim is None and remaining:
+        merged[index] = remaining.pop(0)
+    merged.extend(remaining)
+    return merged
+
+  def parse_ident(self, allow_main: bool = False, allow_field_keywords: bool = False) -> Ident:
     token = self.tokens.peek()
     if token.kind == "IDENT":
       self.tokens.consume()
       return Ident(token.value, token.pos)
     if allow_main and token.kind == "KW" and token.value == "main":
+      self.tokens.consume()
+      return Ident(token.value, token.pos)
+    if allow_field_keywords and token.kind == "KW" and token.value in {"size"}:
       self.tokens.consume()
       return Ident(token.value, token.pos)
     raise JanaError(token.pos, "Expecting identifier")
@@ -607,13 +692,16 @@ class Parser:
     if self.tokens.tokens[idx].kind == "KW" and self.tokens.tokens[idx].value in {"ancilla", "constant"}:
       idx += 1
     token = self.tokens.tokens[idx]
-    return token.kind == "KW" and token.value in set(TYPE_KEYWORDS) | {"stack", "bool"}
+    if token.kind == "IDENT":
+      next_token = self.tokens.tokens[idx + 1]
+      return next_token.kind == "IDENT"
+    return token.kind == "KW" and token.value in set(TYPE_KEYWORDS) | {"stack", "bool", "char"}
 
   def _looks_like_type_cast(self) -> bool:
     idx = self.tokens.index + 1
     token = self.tokens.tokens[idx]
-    return token.kind == "KW" and token.value in set(TYPE_KEYWORDS) | {"stack", "bool"}
+    return token.kind == "KW" and token.value in set(TYPE_KEYWORDS) | {"stack", "bool", "char"}
 
 
-def parse_program(filename: str, text: str) -> Program:
-  return Parser(filename, text).parse_program()
+def parse_program(filename: str, text: str, line_origins: Sequence[LineOrigin] | None = None) -> Program:
+  return Parser(filename, text, line_origins).parse_program()

@@ -18,6 +18,8 @@ from .ast import IterateStmt
 from .ast import LocalDecl
 from .ast import LocalStmt
 from .ast import Lval
+from .ast import LvalField
+from .ast import LvalIndex
 from .ast import LvalExpr
 from .ast import NilExpr
 from .ast import Number
@@ -30,7 +32,11 @@ from .ast import PushStmt
 from .ast import SizeExpr
 from .ast import SkipStmt
 from .ast import SourcePos
+from .ast import StringLiteral
+from .ast import StructDef
+from .ast import StructField
 from .ast import SwapStmt
+from .ast import TernaryExpr
 from .ast import TopExpr
 from .ast import TypeCastExpr
 from .ast import UnaryExpr
@@ -48,12 +54,31 @@ from .invert import invert_stmts
 
 
 class Cell:
-  def __init__(self, value, shape: list[int] | None = None, kind: str = "int", int_type: IntType | None = None, writable: bool = True):
+  def __init__(
+    self,
+    value,
+    shape: list[int] | None = None,
+    kind: str = "int",
+    int_type: IntType | None = None,
+    writable: bool = True,
+    is_char: bool = False,
+    struct_name: str | None = None,
+    elem_kind: str | None = None,
+    elem_int_type: IntType | None = None,
+    elem_is_char: bool = False,
+    elem_struct_name: str | None = None,
+  ):
     self.value = value
     self.shape = shape
     self.kind = kind
     self.int_type = int_type
     self.writable = writable
+    self.is_char = is_char
+    self.struct_name = struct_name
+    self.elem_kind = elem_kind
+    self.elem_int_type = elem_int_type
+    self.elem_is_char = elem_is_char
+    self.elem_struct_name = elem_struct_name
 
 
 @dataclass
@@ -91,6 +116,7 @@ class Runtime:
   ):
     self.program = program
     self.procs = {proc.procname.name: proc for proc in program.procs}
+    self.struct_defs = {struct_def.ident.name: struct_def for struct_def in program.struct_defs}
     self.stdout: list[str] = []
     self.main_vdecls: list[Vdecl] = []
     self.mod_bits = mod_bits
@@ -160,35 +186,135 @@ class Runtime:
   def _init_vdecls(self, frame: Frame, vdecls: list[Vdecl]) -> None:
     for vdecl in vdecls:
       value, shape, kind, int_type = self._initial_value(frame, vdecl)
+      elem_kind, elem_int_type, elem_is_char, elem_struct_name = self._type_cell_metadata(vdecl.typ)
       frame.vars[vdecl.ident.name] = Cell(
         value,
         shape=shape,
         kind=kind,
         int_type=int_type,
         writable=vdecl.decl_type.value != "Constant",
+        is_char=vdecl.typ.is_char,
+        struct_name=vdecl.typ.name if vdecl.typ.kind == "struct" else None,
+        elem_kind=elem_kind if shape is not None else None,
+        elem_int_type=elem_int_type if shape is not None else None,
+        elem_is_char=elem_is_char if shape is not None else False,
+        elem_struct_name=elem_struct_name if shape is not None else None,
       )
 
   def _initial_value(self, frame: Frame, vdecl: Vdecl):
     int_type = vdecl.typ.int_type if vdecl.typ.kind == "int" else None
     if vdecl.dimensions:
-      sizes = [self._eval_expr(frame, dim) if dim is not None else None for dim in vdecl.dimensions]
-      if any(size is None for size in sizes):
-        raise JanaError(vdecl.pos, f"Array size missing for variable `{vdecl.ident.name}'")
-      flat_size = 1
-      for size in sizes:
-        if size < 1:
-          raise JanaError(vdecl.pos, "Array size must be greater than or equal to one")
-        flat_size *= size
-      if vdecl.init_expr is None:
-        return [self._normalize_int(0, int_type) for _ in range(flat_size)], [int(size) for size in sizes], "array", int_type
-      flat = [self._normalize_int(item, int_type) for item in self._flatten_array(frame, vdecl.init_expr)]
-      return flat, [int(size) for size in sizes], "array", int_type
+      return self._initial_array_value(frame, vdecl.pos, vdecl.ident.name, vdecl.dimensions, vdecl.init_expr, vdecl.typ)
+    if vdecl.typ.kind == "struct":
+      return self._initial_struct_value(vdecl.typ, vdecl.pos), None, "struct", None
     if vdecl.typ.kind == "bool":
       return (False if vdecl.init_expr is None else bool(self._eval_expr(frame, vdecl.init_expr))), None, "bool", None
     if vdecl.typ.kind == "stack":
       return ([] if vdecl.init_expr is None else self._eval_expr(frame, vdecl.init_expr)), None, "stack", None
     initial = 0 if vdecl.init_expr is None else self._eval_expr(frame, vdecl.init_expr)
     return self._normalize_int(initial, int_type), None, "int", int_type
+
+  def _initial_struct_value(self, typ, pos: SourcePos) -> dict[str, object]:
+    struct_name = typ.name
+    if struct_name is None or struct_name not in self.struct_defs:
+      raise JanaError(pos, f"Unknown struct type `{struct_name or typ.kind}`")
+    struct_def = self.struct_defs[struct_name]
+    value: dict[str, object] = {}
+    for field in struct_def.fields:
+      value[field.ident.name] = self._zero_struct_field(field)
+    return value
+
+  def _zero_struct_field(self, field: StructField):
+    if field.dimensions:
+      return self._zero_struct_field_array(field)
+    if field.typ.kind == "struct":
+      return self._initial_struct_value(field.typ, field.pos)
+    if field.typ.kind == "bool":
+      return False
+    if field.typ.kind == "stack":
+      return []
+    if field.typ.kind == "int":
+      return self._normalize_int(0, field.typ.int_type)
+    raise JanaError(field.pos, f"Unsupported struct field type `{field.typ.kind}`")
+
+  def _zero_struct_field_array(self, field: StructField):
+    sizes = self._static_array_sizes(field.dimensions, field.ident.name, field.pos)
+    flat_size = 1
+    for size in sizes:
+      flat_size *= size
+    return [self._zero_value_for_type(field.typ, field.pos) for _ in range(flat_size)]
+
+  def _type_cell_metadata(self, typ) -> tuple[str, IntType | None, bool, str | None]:
+    if typ.kind == "struct":
+      return "struct", None, False, typ.name
+    if typ.kind == "bool":
+      return "bool", None, False, None
+    if typ.kind == "stack":
+      return "stack", None, False, None
+    return "int", typ.int_type, typ.is_char, None
+
+  def _zero_value_for_type(self, typ, pos: SourcePos):
+    if typ.kind == "struct":
+      return self._initial_struct_value(typ, pos)
+    if typ.kind == "bool":
+      return False
+    if typ.kind == "stack":
+      return []
+    return self._normalize_int(0, typ.int_type)
+
+  def _static_array_sizes(self, dimensions: list[Expr | None], name: str, pos: SourcePos) -> list[int]:
+    sizes = [self._eval_expr(Frame(vars={}), dim) if dim is not None else None for dim in dimensions]
+    if any(size is None for size in sizes):
+      raise JanaError(pos, f"Array size missing for variable `{name}'")
+    out: list[int] = []
+    for size in sizes:
+      if size < 1:
+        raise JanaError(pos, "Array size must be greater than or equal to one")
+      out.append(int(size))
+    return out
+
+  def _initial_array_value(
+    self,
+    frame: Frame,
+    pos: SourcePos,
+    name: str,
+    dimensions: list[Expr | None],
+    init_expr: Expr | None,
+    typ,
+  ):
+    int_type = typ.int_type if typ.kind == "int" else None
+    is_char = typ.is_char
+    if is_char and len(dimensions) != 1:
+      raise JanaError(pos, f"Character arrays must be one-dimensional for variable `{name}'")
+    inferred_size: int | None = None
+    if is_char and isinstance(init_expr, StringLiteral):
+      inferred_size = len(self._char_literal_bytes(pos, init_expr.value))
+    sizes = [self._eval_expr(frame, dim) if dim is not None else None for dim in dimensions]
+    if any(size is None for size in sizes):
+      if len(dimensions) == 1 and sizes == [None] and inferred_size is not None:
+        sizes = [inferred_size]
+      else:
+        raise JanaError(pos, f"Array size missing for variable `{name}'")
+    flat_size = 1
+    for size in sizes:
+      if size < 1:
+        raise JanaError(pos, "Array size must be greater than or equal to one")
+      flat_size *= size
+    if init_expr is None:
+      return [self._zero_value_for_type(typ, pos) for _ in range(flat_size)], [int(size) for size in sizes], "array", int_type
+    if typ.kind == "struct":
+      raise JanaError(pos, "Struct array initializers are not implemented")
+    if typ.kind == "bool":
+      flat = [bool(item) for item in self._flatten_array(frame, init_expr)]
+    elif typ.kind == "stack":
+      flat = self._flatten_array(frame, init_expr)
+    else:
+      flat = self._flatten_initializer(frame, pos, init_expr, int_type, is_char)
+    if len(flat) > flat_size:
+      raise JanaError(pos, f"Initializer is too large for variable `{name}'")
+    if len(flat) < flat_size:
+      flat.extend(self._zero_value_for_type(typ, pos) for _ in range(flat_size - len(flat)))
+    return flat, [int(size) for size in sizes], "array", int_type
 
   def _flatten_array(self, frame: Frame, expr: Expr):
     if isinstance(expr, ArrayExpr):
@@ -200,6 +326,23 @@ class Runtime:
           values.append(self._eval_expr(frame, item))
       return values
     return [self._eval_expr(frame, expr)]
+
+  def _flatten_initializer(self, frame: Frame, pos: SourcePos, expr: Expr, int_type: IntType | None, is_char: bool) -> list[int]:
+    if isinstance(expr, StringLiteral):
+      if not is_char:
+        raise JanaError(pos, "String literals can only initialize char arrays")
+      return [self._normalize_int(item, int_type) for item in self._char_literal_bytes(pos, expr.value)]
+    return [self._normalize_int(item, int_type) for item in self._flatten_array(frame, expr)]
+
+  def _char_literal_bytes(self, pos: SourcePos, text: str) -> list[int]:
+    values: list[int] = []
+    for char in text:
+      codepoint = ord(char)
+      if codepoint > 0xFF:
+        raise JanaError(pos, f"Character literal out of range for char array: {char!r}")
+      values.append(codepoint)
+    values.append(0)
+    return values
 
   def _exec_block(
     self,
@@ -370,7 +513,7 @@ class Runtime:
           raise JanaError(stmt.pos, "Updating constant", contextual=True)
         if not stack_cell.value:
           raise JanaError(stmt.pos, "Can't pop from empty stack", contextual=True)
-        target = self._resolve_lval(frame, Lval(stmt.expr.lval.ident, stmt.expr.lval.indices)) if isinstance(stmt.expr, LvalExpr) else None
+        target = self._resolve_lval(frame, Lval(stmt.expr.lval.ident, list(stmt.expr.lval.selectors))) if isinstance(stmt.expr, LvalExpr) else None
         if target is None:
           raise JanaError(stmt.pos, "Only l-values are supported for pop")
         if not target.writable:
@@ -656,7 +799,7 @@ class Runtime:
           if value_index >= len(values):
             raise JanaError(stmt.pos, "Not enough arguments for format string", contextual=True)
           self._check_printf_type(stmt.pos, kind, cells[value_index])
-          pieces.append(str(values[value_index]))
+          pieces.append(self._render_printf_value(kind, cells[value_index]))
           value_index += 1
         i += 2
       else:
@@ -665,6 +808,16 @@ class Runtime:
     if value_index != len(values):
       raise JanaError(stmt.pos, "Not all arguments where used during string formatting", contextual=True)
     self.stdout.append("".join(pieces) + "\n")
+
+  def _render_printf_value(self, kind: str, cell: Cell) -> str:
+    if kind == "s":
+      chars: list[str] = []
+      for item in cell.value:
+        if item == 0:
+          break
+        chars.append(chr(item))
+      return "".join(chars)
+    return str(cell.value)
 
   def _call_proc(self, caller: Frame, name: str, args: list[Expr], pos: SourcePos, record_stmt: bool = True, record_nested: bool = False) -> None:
     proc = self.procs.get(name)
@@ -720,12 +873,19 @@ class Runtime:
     self._check_local_decl_match(stmt)
     existing = frame.vars.get(stmt.enter_decl.ident.name)
     value, shape, kind, int_type = self._initial_local_value(frame, stmt.enter_decl)
+    elem_kind, elem_int_type, elem_is_char, elem_struct_name = self._type_cell_metadata(stmt.enter_decl.typ)
     frame.vars[stmt.enter_decl.ident.name] = Cell(
       value,
       shape=shape,
       kind=kind,
       int_type=int_type,
       writable=stmt.enter_decl.decl_type.value != "Constant",
+      is_char=stmt.enter_decl.typ.is_char,
+      struct_name=stmt.enter_decl.typ.name if stmt.enter_decl.typ.kind == "struct" else None,
+      elem_kind=elem_kind if shape is not None else None,
+      elem_int_type=elem_int_type if shape is not None else None,
+      elem_is_char=elem_is_char if shape is not None else False,
+      elem_struct_name=elem_struct_name if shape is not None else None,
     )
     self._exec_block(frame, stmt.body, record_stmt=record_stmt, record_nested=record_nested)
     expected = self._expected_local_value(frame, stmt.exit_decl)
@@ -771,23 +931,16 @@ class Runtime:
   def _decl_type_name(self, decl: LocalDecl) -> str:
     if decl.dimensions:
       return "Array"
+    if decl.typ.is_char:
+      return "char"
     return decl.typ.kind if decl.typ.kind != "int" else "int"
 
   def _initial_local_value(self, frame: Frame, decl: LocalDecl):
     int_type = decl.typ.int_type if decl.typ.kind == "int" else None
     if decl.dimensions:
-      sizes = [self._eval_expr(frame, dim) if dim is not None else None for dim in decl.dimensions]
-      if any(size is None for size in sizes):
-        raise JanaError(decl.pos, f"Array size missing for variable `{decl.ident.name}'")
-      flat_size = 1
-      for size in sizes:
-        if size < 1:
-          raise JanaError(decl.pos, "Array size must be greater than or equal to one")
-        flat_size *= size
-      if decl.init_expr is None:
-        return [self._normalize_int(0, int_type) for _ in range(flat_size)], [int(size) for size in sizes], "array", int_type
-      flat = [self._normalize_int(item, int_type) for item in self._flatten_array(frame, decl.init_expr)]
-      return flat, [int(size) for size in sizes], "array", int_type
+      return self._initial_array_value(frame, decl.pos, decl.ident.name, decl.dimensions, decl.init_expr, decl.typ)
+    if decl.typ.kind == "struct":
+      return self._initial_struct_value(decl.typ, decl.pos), None, "struct", None
     if decl.typ.kind == "bool":
       return (False if decl.init_expr is None else bool(self._eval_expr(frame, decl.init_expr))), None, "bool", None
     if decl.typ.kind == "stack":
@@ -798,8 +951,19 @@ class Runtime:
   def _expected_local_value(self, frame: Frame, decl: LocalDecl):
     if decl.dimensions:
       if decl.init_expr is None:
-        return [0 for _ in frame.vars[decl.ident.name].value]
-      return self._flatten_array(frame, decl.init_expr)
+        return [self._zero_value_for_type(decl.typ, decl.pos) for _ in frame.vars[decl.ident.name].value]
+      if decl.typ.kind == "bool":
+        return [bool(item) for item in self._flatten_array(frame, decl.init_expr)]
+      if decl.typ.kind == "stack":
+        return self._flatten_array(frame, decl.init_expr)
+      if decl.typ.kind == "struct":
+        raise JanaError(decl.pos, "Struct array local initializers are not implemented")
+      int_type = decl.typ.int_type if decl.typ.kind == "int" else None
+      return self._flatten_initializer(frame, decl.pos, decl.init_expr, int_type, decl.typ.is_char)
+    if decl.typ.kind == "struct":
+      if decl.init_expr is not None:
+        raise JanaError(decl.pos, "Struct local initializers are not implemented")
+      return self._initial_struct_value(decl.typ, decl.pos)
     if decl.typ.kind == "bool":
       return False if decl.init_expr is None else bool(self._eval_expr(frame, decl.init_expr))
     if decl.typ.kind == "stack":
@@ -812,27 +976,99 @@ class Runtime:
     return frame.vars[name]
 
   def _resolve_lval(self, frame: Frame, lval: Lval) -> Cell:
-    cell = self._resolve_var(frame, lval.ident.name)
-    if not lval.indices:
-      return cell
-    value = cell.value
-    if not isinstance(value, list):
-      raise JanaError(lval.ident.pos, "Couldn't match expected type `array`\n            with actual type `int`")
-    if cell.shape is None:
-      index = self._eval_expr(frame, lval.indices[0])
-      if index < 0 or index >= len(value):
-        raise JanaError(lval.ident.pos, f"Array index `[{index}]' was out of bounds (array size was [{len(value)}])")
-      return CellProxy(value, index, kind="int", int_type=cell.int_type, writable=cell.writable)
-    flat_index = 0
-    shape = cell.shape
-    if len(lval.indices) != len(shape):
-      raise JanaError(lval.ident.pos, "Array rank mismatch")
-    for idx_expr, size in zip(lval.indices, shape):
-      idx = self._eval_expr(frame, idx_expr)
-      if idx < 0 or idx >= size:
-        raise JanaError(lval.ident.pos, f"Array index `[{idx}]' was out of bounds (array size was [{size}])")
-      flat_index = flat_index * size + idx
-    return CellProxy(value, flat_index, kind="int", int_type=cell.int_type, writable=cell.writable)
+    current = self._resolve_var(frame, lval.ident.name)
+    for selector in lval.selectors:
+      if isinstance(selector, LvalField):
+        current = self._resolve_field_selector(lval.ident.name, current, selector)
+      elif isinstance(selector, LvalIndex):
+        current = self._resolve_index_selector(frame, current, selector, lval.ident.pos)
+    return current
+
+  def _resolve_field_selector(self, root_name: str, current: Cell, selector: LvalField) -> Cell:
+    if current.kind != "struct" or not isinstance(current.value, dict):
+      raise JanaError(selector.ident.pos, f"Variable `{root_name}' does not have field `{selector.ident.name}'", contextual=True)
+    if selector.ident.name not in current.value:
+      raise JanaError(selector.ident.pos, f"Struct `{current.struct_name or 'struct'}` does not have field `{selector.ident.name}'", contextual=True)
+    value = current.value[selector.ident.name]
+    field_decl = self._struct_field_decl(current.struct_name, selector.ident.name, selector.ident.pos)
+    kind, shape, int_type, is_char, struct_name, elem_kind, elem_int_type, elem_is_char, elem_struct_name = self._field_cell_metadata(field_decl)
+    return StructFieldProxy(
+      current.value,
+      selector.ident.name,
+      kind=kind,
+      shape=shape,
+      int_type=int_type,
+      writable=current.writable,
+      is_char=is_char,
+      struct_name=struct_name,
+      elem_kind=elem_kind,
+      elem_int_type=elem_int_type,
+      elem_is_char=elem_is_char,
+      elem_struct_name=elem_struct_name,
+    )
+
+  def _resolve_index_selector(self, frame: Frame, current: Cell, selector: LvalIndex, pos: SourcePos) -> Cell:
+    if current.kind != "array" or current.shape is None:
+      raise JanaError(pos, f"Couldn't match expected type `array`\n            with actual type `{self._cell_kind_name(current)}`")
+    idx = self._eval_expr(frame, selector.expr)
+    size = current.shape[0]
+    if idx < 0 or idx >= size:
+      raise JanaError(pos, f"Array index `[{idx}]' was out of bounds (array size was [{size}])")
+    array, offset = self._array_storage(current)
+    if len(current.shape) == 1:
+      return CellProxy(
+        array,
+        offset + idx,
+        kind=current.elem_kind or "int",
+        int_type=current.elem_int_type,
+        writable=current.writable,
+        is_char=current.elem_is_char,
+        struct_name=current.elem_struct_name,
+      )
+    stride = 1
+    for dim in current.shape[1:]:
+      stride *= dim
+    return ArraySliceProxy(
+      array,
+      offset + idx * stride,
+      current.shape[1:],
+      writable=current.writable,
+      elem_kind=current.elem_kind,
+      elem_int_type=current.elem_int_type,
+      elem_is_char=current.elem_is_char,
+      elem_struct_name=current.elem_struct_name,
+    )
+
+  def _array_storage(self, cell: Cell) -> tuple[list, int]:
+    if isinstance(cell, ArraySliceProxy):
+      return cell.array, cell.offset
+    return cell.value, 0
+
+  def _struct_field_decl(self, struct_name: str | None, field_name: str, pos: SourcePos) -> StructField:
+    if struct_name is None or struct_name not in self.struct_defs:
+      raise JanaError(pos, f"Unknown struct type `{struct_name or 'struct'}`", contextual=True)
+    struct_def = self.struct_defs[struct_name]
+    for field in struct_def.fields:
+      if field.ident.name == field_name:
+        return field
+    raise JanaError(pos, f"Struct `{struct_name}` does not have field `{field_name}'", contextual=True)
+
+  def _field_cell_metadata(self, field: StructField) -> tuple[str, list[int] | None, IntType | None, bool, str | None, str | None, IntType | None, bool, str | None]:
+    elem_kind, elem_int_type, elem_is_char, elem_struct_name = self._type_cell_metadata(field.typ)
+    if field.dimensions:
+      return "array", self._static_array_sizes(field.dimensions, field.ident.name, field.pos), None, field.typ.is_char and len(field.dimensions) == 1, None, elem_kind, elem_int_type, elem_is_char, elem_struct_name
+    return elem_kind, None, elem_int_type if elem_kind == "int" else None, field.typ.is_char, elem_struct_name if elem_kind == "struct" else None, None, None, False, None
+
+  def _metadata_for_value(self, value, parent: Cell) -> tuple[str, IntType | None, bool, str | None]:
+    if isinstance(value, dict):
+      return "struct", None, False, self._struct_name_for_value(value)
+    if isinstance(value, bool):
+      return "bool", None, False, None
+    if isinstance(value, list):
+      return "stack", None, False, None
+    if parent.elem_kind is not None:
+      return parent.elem_kind, parent.elem_int_type, parent.elem_is_char, parent.elem_struct_name
+    return "int", parent.int_type, False, None
 
   def _eval_expr(self, frame: Frame, expr: Expr):
     try:
@@ -872,6 +1108,13 @@ class Runtime:
           if err.contextual and not any(detail.startswith("In expression:") for detail in err.details):
             raise err.add_detail(f"In expression:\n    {format_expr(expr)}")
           raise
+      if isinstance(expr, TernaryExpr):
+        cond = self._eval_expr(frame, expr.cond)
+        if not isinstance(cond, bool):
+          actual = self._describe_value(cond)
+          raise JanaError(expr.pos, f"Couldn't match expected type `bool'\n            with actual type `{actual}'", [f"In expression:\n    {format_expr(expr)}"], True)
+        branch = expr.then_expr if cond else expr.else_expr
+        return self._eval_expr(frame, branch)
       if isinstance(expr, ArrayExpr):
         return [self._eval_expr(frame, item) if not isinstance(item, ArrayExpr) else self._flatten_array(frame, item) for item in expr.items]
       if isinstance(expr, SizeExpr):
@@ -996,10 +1239,19 @@ class Runtime:
       "d": "int",
       "a": "array",
       "b": "bool",
+      "s": "char array",
       "t": "stack",
     }.get(kind)
     if expected is None:
       raise JanaError(pos, f"Unrecognized format specifier: `%{kind}'", contextual=True)
+    if kind == "s":
+      if cell.kind != "array" or cell.shape is None or len(cell.shape) != 1 or not cell.is_char:
+        raise JanaError(
+          pos,
+          f"Type mismatch for `%{kind}' format specifier\nExpected argument of type `{expected}'\n      but actual type was `{self._cell_kind_name(cell)}`",
+          contextual=True,
+        )
+      return
     actual = self._cell_kind_name(cell)
     actual_base = "array" if cell.kind == "array" else "stack" if cell.kind == "stack" else "bool" if cell.kind == "bool" else "int"
     if expected != actual_base:
@@ -1014,25 +1266,52 @@ class Runtime:
       return "bool"
     if isinstance(value, list):
       return "stack" if value and not isinstance(value[0], int) else "array_or_stack"
+    if isinstance(value, dict):
+      return "struct"
     return "int"
+
+  def _value_kind_name(self, value) -> str:
+    if isinstance(value, bool):
+      return "bool"
+    if isinstance(value, list):
+      return "stack"
+    if isinstance(value, dict):
+      return "struct"
+    return "int"
+
+  def _struct_name_for_value(self, value) -> str | None:
+    if not isinstance(value, dict):
+      return None
+    for struct_def in self.struct_defs.values():
+      if {field.ident.name for field in struct_def.fields} == set(value):
+        return struct_def.ident.name
+    return None
 
   def _describe_value(self, value) -> str:
     if isinstance(value, bool):
       return "bool"
     if isinstance(value, list):
       return "stack"
+    if isinstance(value, dict):
+      return "struct"
     return "int"
 
   def _cell_kind_name(self, cell: Cell) -> str:
     if cell.kind == "array" and cell.shape is not None:
       dims = "".join(f"[{size}]" for size in cell.shape)
-      return f"array{dims}"
+      prefix = "char" if cell.is_char else "array"
+      return f"{prefix}{dims}"
+    if cell.kind == "struct":
+      return cell.struct_name or "struct"
     return cell.kind
 
   def _check_param_compat(self, param: Vdecl, cell: Cell, pos: SourcePos) -> None:
     if param.dimensions:
       if cell.kind != "array":
         raise JanaError(param.pos, f"Couldn't match expected type `array'\n            with actual type `{self._cell_kind_name(cell)}'", contextual=True)
+      if param.typ.is_char != cell.is_char:
+        expected = "char" if param.typ.is_char else "array"
+        raise JanaError(param.pos, f"Couldn't match expected type `{expected}'\n            with actual type `{self._cell_kind_name(cell)}'", contextual=True)
       if len(param.dimensions) != (len(cell.shape) if cell.shape is not None else 0):
         raise JanaError(param.pos, f"Couldn't match expected type `array'\n            with actual type `{self._cell_kind_name(cell)}'", contextual=True)
       expected_sizes = [self._eval_expr(Frame(vars={}), dim) for dim in param.dimensions if dim is not None]
@@ -1042,10 +1321,16 @@ class Runtime:
           f"Expecting array of size [{', '.join(str(size) for size in expected_sizes)}] but got size [{', '.join(str(size) for size in cell.shape)}]",
           [],
           True,
-        )
+      )
+      return
+    if param.typ.kind == "struct":
+      if cell.kind != "struct":
+        raise JanaError(param.pos, f"Couldn't match expected type `{param.typ.name or 'struct'}'\n            with actual type `{self._cell_kind_name(cell)}'", contextual=True)
+      if param.typ.name != cell.struct_name:
+        raise JanaError(param.pos, f"Couldn't match expected type `{param.typ.name or 'struct'}'\n            with actual type `{self._cell_kind_name(cell)}'", contextual=True)
       return
     expected = param.typ.kind
-    actual = "stack" if cell.kind == "stack" else "bool" if cell.kind == "bool" else "int"
+    actual = "stack" if cell.kind == "stack" else "bool" if cell.kind == "bool" else "struct" if cell.kind == "struct" else "int"
     if expected != actual:
       raise JanaError(param.pos, f"Couldn't match expected type `{expected}'\n            with actual type `{actual}'", contextual=True)
 
@@ -1055,10 +1340,14 @@ class Runtime:
         actual = "int"
         if isinstance(left, list) or isinstance(right, list):
           actual = "stack"
+        if isinstance(left, dict) or isinstance(right, dict):
+          actual = "struct"
         raise JanaError(pos, f"Couldn't match expected type `bool'\n            with actual type `{actual}'", contextual=True)
       return
     if isinstance(left, list) or isinstance(right, list):
       raise JanaError(pos, "Couldn't match expected type `int'\n            with actual type `stack'", contextual=True)
+    if isinstance(left, dict) or isinstance(right, dict):
+      raise JanaError(pos, "Couldn't match expected type `int'\n            with actual type `struct'", contextual=True)
 
   def _check_assign_compat(self, pos: SourcePos, cell: Cell, value) -> None:
     if cell.kind == "array":
@@ -1073,6 +1362,8 @@ class Runtime:
       return
     if cell.kind == "stack" and not isinstance(value, list):
       raise JanaError(pos, f"Couldn't match expected type `stack'\n            with actual type `{self._describe_value(value)}'", contextual=True)
+    if cell.kind == "struct" and not isinstance(value, dict):
+      raise JanaError(pos, f"Couldn't match expected type `struct'\n            with actual type `{self._describe_value(value)}'", contextual=True)
     if cell.kind == "int" and isinstance(value, list):
       raise JanaError(pos, "Couldn't match expected type `int'\n            with actual type `stack'", contextual=True)
 
@@ -1098,7 +1389,7 @@ class Runtime:
 
   def _check_alias_assign(self, frame: Frame, stmt: AssignStmt) -> None:
     lhs_key = self._ref_key(frame, stmt.lval)
-    for idx_expr in stmt.lval.indices:
+    for idx_expr in self._selector_index_exprs(stmt.lval):
       for expr_lval in self._expr_lvals(idx_expr):
         if lhs_key == self._ref_key(frame, expr_lval):
           raise JanaError(
@@ -1126,7 +1417,7 @@ class Runtime:
       )
     left_key = self._ref_key(frame, stmt.left)
     right_key = self._ref_key(frame, stmt.right)
-    for idx_expr in stmt.left.indices + stmt.right.indices:
+    for idx_expr in self._selector_index_exprs(stmt.left) + self._selector_index_exprs(stmt.right):
       for expr_lval in self._expr_lvals(idx_expr):
         expr_key = self._ref_key(frame, expr_lval)
         if expr_key == left_key or expr_key == right_key:
@@ -1140,13 +1431,15 @@ class Runtime:
   def _expr_lvals(self, expr: Expr) -> list[Lval]:
     if isinstance(expr, LvalExpr):
       out = [expr.lval]
-      for idx in expr.lval.indices:
+      for idx in self._selector_index_exprs(expr.lval):
         out.extend(self._expr_lvals(idx))
       return out
     if isinstance(expr, UnaryExpr):
       return self._expr_lvals(expr.expr)
     if isinstance(expr, BinExpr):
       return self._expr_lvals(expr.left) + self._expr_lvals(expr.right)
+    if isinstance(expr, TernaryExpr):
+      return self._expr_lvals(expr.cond) + self._expr_lvals(expr.then_expr) + self._expr_lvals(expr.else_expr)
     if isinstance(expr, ArrayExpr):
       out: list[Lval] = []
       for item in expr.items:
@@ -1154,10 +1447,17 @@ class Runtime:
       return out
     return []
 
+  def _selector_index_exprs(self, lval: Lval) -> list[Expr]:
+    return [selector.expr for selector in lval.selectors if isinstance(selector, LvalIndex)]
+
   def _ref_key(self, frame: Frame, lval: Lval):
     cell = self._resolve_lval(frame, lval)
+    if isinstance(cell, ArraySliceProxy):
+      return (id(cell.array), cell.offset, tuple(cell.shape))
     if isinstance(cell, CellProxy):
       return (id(cell.array), cell.index)
+    if isinstance(cell, StructFieldProxy):
+      return (id(cell.struct_value), cell.field_name)
     return (id(cell), None)
 
   def _format_store(self, frame: Frame) -> str:
@@ -1178,15 +1478,30 @@ class Runtime:
       return self._format_array(value, shape)
     if isinstance(value, bool):
       return "true" if value else "false"
+    if isinstance(value, dict):
+      struct_name = self._struct_name_for_value(value)
+      pieces: list[str] = []
+      for name, item in value.items():
+        field_shape = self._struct_field_shape(struct_name, name)
+        pieces.append(f"{name} = {self._format_value(item, field_shape)}")
+      return "{" + ", ".join(pieces) + "}"
     if isinstance(value, list):
       if not value:
         return "nil"
       return "<" + ", ".join(str(item) for item in value) + "]"
     return str(value)
 
+  def _struct_field_shape(self, struct_name: str | None, field_name: str) -> list[int] | None:
+    if struct_name is None or struct_name not in self.struct_defs:
+      return None
+    for field in self.struct_defs[struct_name].fields:
+      if field.ident.name == field_name:
+        return self._static_array_sizes(field.dimensions, field.ident.name, field.pos) if field.dimensions else None
+    return None
+
   def _format_array(self, flat: list, shape: list[int]) -> str:
     if len(shape) == 1:
-      return "{" + ", ".join(str(item) for item in flat) + "}"
+      return "{" + ", ".join(self._format_value(item, None) for item in flat) + "}"
     chunk = 1
     for size in shape[1:]:
       chunk *= size
@@ -1197,13 +1512,29 @@ class Runtime:
 
 
 class CellProxy(Cell):
-  def __init__(self, array: list, index: int, kind: str = "int", shape: list[int] | None = None, int_type: IntType | None = None, writable: bool = True):
+  def __init__(
+    self,
+    array: list,
+    index: int,
+    kind: str = "int",
+    shape: list[int] | None = None,
+    int_type: IntType | None = None,
+    writable: bool = True,
+    is_char: bool = False,
+    struct_name: str | None = None,
+  ):
     self.array = array
     self.index = index
     self.kind = kind
     self.shape = shape
     self.int_type = int_type
     self.writable = writable
+    self.is_char = is_char
+    self.struct_name = struct_name
+    self.elem_kind = None
+    self.elem_int_type = None
+    self.elem_is_char = False
+    self.elem_struct_name = None
 
   @property
   def value(self):
@@ -1212,3 +1543,81 @@ class CellProxy(Cell):
   @value.setter
   def value(self, new_value):
     self.array[self.index] = new_value
+
+
+class StructFieldProxy(Cell):
+  def __init__(
+    self,
+    struct_value: dict[str, object],
+    field_name: str,
+    kind: str = "int",
+    shape: list[int] | None = None,
+    int_type: IntType | None = None,
+    writable: bool = True,
+    is_char: bool = False,
+    struct_name: str | None = None,
+    elem_kind: str | None = None,
+    elem_int_type: IntType | None = None,
+    elem_is_char: bool = False,
+    elem_struct_name: str | None = None,
+  ):
+    self.struct_value = struct_value
+    self.field_name = field_name
+    self.kind = kind
+    self.shape = shape
+    self.int_type = int_type
+    self.writable = writable
+    self.is_char = is_char
+    self.struct_name = struct_name
+    self.elem_kind = elem_kind
+    self.elem_int_type = elem_int_type
+    self.elem_is_char = elem_is_char
+    self.elem_struct_name = elem_struct_name
+
+  @property
+  def value(self):
+    return self.struct_value[self.field_name]
+
+  @value.setter
+  def value(self, new_value):
+    self.struct_value[self.field_name] = new_value
+
+
+class ArraySliceProxy(Cell):
+  def __init__(
+    self,
+    array: list,
+    offset: int,
+    shape: list[int],
+    writable: bool = True,
+    elem_kind: str | None = None,
+    elem_int_type: IntType | None = None,
+    elem_is_char: bool = False,
+    elem_struct_name: str | None = None,
+  ):
+    self.array = array
+    self.offset = offset
+    self.shape = shape
+    self.kind = "array"
+    self.int_type = elem_int_type
+    self.writable = writable
+    self.is_char = elem_is_char and len(shape) == 1
+    self.struct_name = None
+    self.elem_kind = elem_kind
+    self.elem_int_type = elem_int_type
+    self.elem_is_char = elem_is_char
+    self.elem_struct_name = elem_struct_name
+
+  @property
+  def value(self):
+    length = 1
+    for dim in self.shape:
+      length *= dim
+    return self.array[self.offset:self.offset + length]
+
+  @value.setter
+  def value(self, new_value):
+    length = 1
+    for dim in self.shape:
+      length *= dim
+    self.array[self.offset:self.offset + length] = new_value

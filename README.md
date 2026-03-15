@@ -46,3 +46,5 @@ Or, to run it directly using stack, use
 
     cd src/
     stack exec -- runhaskell Main.hs
+
+Python-side extended examples live under `examples/`; `examples/build-dict.ja` exercises preprocessor macros, ternary expressions, and struct array fields added in the Python implementation.
