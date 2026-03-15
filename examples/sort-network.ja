@@ -1,0 +1,46 @@
+// Reversible sorting network on struct array.
+// Demonstrates: struct arrays, #define, conditional swap, call/uncall.
+// Sorts with `call sort4`, unsorts with `uncall sort4`.
+
+#define N 4
+
+struct item {
+    int key,
+    int data
+}
+
+procedure cswap(int ak, int ad, int bk, int bd, int swaps)
+    if ak > bk then
+        ak <=> bk
+        ad <=> bd
+        swaps += 1
+    fi ak < bk
+
+// Optimal 4-element sorting network (5 comparators).
+procedure sort4(item arr[N], int swaps)
+    call cswap(arr[0].key, arr[0].data, arr[1].key, arr[1].data, swaps)
+    call cswap(arr[2].key, arr[2].data, arr[3].key, arr[3].data, swaps)
+    call cswap(arr[0].key, arr[0].data, arr[2].key, arr[2].data, swaps)
+    call cswap(arr[1].key, arr[1].data, arr[3].key, arr[3].data, swaps)
+    call cswap(arr[1].key, arr[1].data, arr[2].key, arr[2].data, swaps)
+
+procedure main()
+    item arr[N]
+    int swaps
+
+    arr[0].key += 4
+    arr[0].data += 40
+    arr[1].key += 2
+    arr[1].data += 20
+    arr[2].key += 3
+    arr[2].data += 30
+    arr[3].key += 1
+    arr[3].data += 10
+
+    call sort4(arr, swaps)
+    printf("sorted (%d swaps):\n", swaps)
+    show(arr)
+
+    uncall sort4(arr, swaps)
+    printf("unsorted:\n")
+    show(arr)

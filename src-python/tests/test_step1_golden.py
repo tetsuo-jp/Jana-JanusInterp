@@ -58,6 +58,9 @@ class Step1GoldenTests(unittest.TestCase):
 # Cases that intentionally diverge from Haskell (Python-only extensions or Haskell timeouts).
 _SKIP_CASES: set[str] = {
     "examples/build-dict.ja",          # uses #define preprocessor (Python extension)
+    "examples/caesar.ja",              # uses #define and char array init (Python extension)
+    "examples/linked-list.ja",         # uses struct and #define (Python extension)
+    "examples/sort-network.ja",        # uses struct (Python extension)
     "tests/errors/infinite-recursion.ja",  # Haskell hangs on this input
 }
 
