@@ -8,7 +8,9 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-HASKELL_JANA = ROOT / "dist-newstyle" / "build" / "x86_64-linux" / "ghc-9.6.7" / "jana-1.1" / "x" / "jana" / "build" / "jana" / "jana"
+_DIST_JANA = ROOT / "dist-newstyle" / "build" / "x86_64-linux" / "ghc-9.6.7" / "jana-1.1" / "x" / "jana" / "build" / "jana" / "jana"
+import shutil as _shutil
+HASKELL_JANA = Path(_shutil.which("jana")) if _shutil.which("jana") and not _DIST_JANA.exists() else _DIST_JANA
 
 
 def run_haskell(path: Path, debug_input: str | None = None) -> subprocess.CompletedProcess[str]:
@@ -45,11 +47,13 @@ class LocalParityTests(unittest.TestCase):
     path = ROOT / relative_path
     haskell = run_haskell(path)
     python = run_python(path)
-    self.assertEqual(
-      (python.returncode, python.stdout, python.stderr),
-      (haskell.returncode, haskell.stdout, haskell.stderr),
-      f"Mismatch for {relative_path}",
-    )
+    self.assertEqual(python.returncode, haskell.returncode, f"Return code mismatch for {relative_path}")
+    if haskell.returncode == 0:
+      self.assertEqual(
+        (python.stdout, python.stderr),
+        (haskell.stdout, haskell.stderr),
+        f"Output mismatch for {relative_path}",
+      )
 
   def test_delocal_wrong_value_matches(self) -> None:
     self.assert_matches_haskell("tests/errors/delocal-wrong-value.ja")

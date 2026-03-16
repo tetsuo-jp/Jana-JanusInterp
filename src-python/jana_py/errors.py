@@ -17,13 +17,22 @@ class JanaError(Exception):
 
   def __str__(self) -> str:
     if self.contextual:
-      parts = [self.message]
+      lines = [f"Error at line {self.pos.line}:"]
+      lines.append(f"  {self.message}")
       for detail in self.details:
         if detail.startswith("  where "):
-          parts.append("\n" + detail)
+          lines.append("")
+          for where_line in detail.split("\n"):
+            stripped = where_line.strip()
+            if stripped.startswith("where "):
+              lines.append(f"  Where: {stripped[6:]}")
+            elif stripped:
+              lines.append(f"         {stripped}")
+        elif detail.startswith("In "):
+          lines.append(f"  {detail}")
         else:
-          parts.append("," + detail)
-      return f"[ERROR (line {self.pos.line})]\n[{''.join(parts)}]"
+          lines.append(f"  {detail.lstrip()}")
+      return "\n".join(lines)
     if self.pos.filename and not self.pos.line and not self.pos.column:
       return f'File "{self.pos.filename}":\n    {self.message}'
     if self.pos.filename and self.pos.line and self.pos.column:

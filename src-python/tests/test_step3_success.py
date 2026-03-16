@@ -10,7 +10,9 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[2]
-HASKELL_JANA = ROOT / "dist-newstyle" / "build" / "x86_64-linux" / "ghc-9.6.7" / "jana-1.1" / "x" / "jana" / "build" / "jana" / "jana"
+_DIST_JANA = ROOT / "dist-newstyle" / "build" / "x86_64-linux" / "ghc-9.6.7" / "jana-1.1" / "x" / "jana" / "build" / "jana" / "jana"
+import shutil as _shutil
+HASKELL_JANA = Path(_shutil.which("jana")) if _shutil.which("jana") and not _DIST_JANA.exists() else _DIST_JANA
 
 
 def run_haskell(path: str) -> subprocess.CompletedProcess[str]:
