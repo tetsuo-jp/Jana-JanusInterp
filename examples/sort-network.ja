@@ -25,17 +25,8 @@ procedure sort4(item arr[N], int swaps)
     call cswap(arr[1].key, arr[1].data, arr[2].key, arr[2].data, swaps)
 
 procedure main()
-    item arr[N]
+    item arr[N] = {{4, 40}, {2, 20}, {3, 30}, {1, 10}}
     int swaps
-
-    arr[0].key += 4
-    arr[0].data += 40
-    arr[1].key += 2
-    arr[1].data += 20
-    arr[2].key += 3
-    arr[2].data += 30
-    arr[3].key += 1
-    arr[3].data += 10
 
     call sort4(arr, swaps)
     printf("sorted (%d swaps):\n", swaps)

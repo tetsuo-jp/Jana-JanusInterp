@@ -50,10 +50,8 @@ procedure build_dict(codes out, int i, int j, dict d)
     delocal char k = 0
 
 procedure main()
-    codes out[3]
+    codes out[3] = {1, 2, 0}
     int i
     int j
     dict d
-    out[0] += 1
-    out[1] += 2
     call build_dict(out, i, j, d)

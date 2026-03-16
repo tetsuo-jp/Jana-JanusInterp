@@ -16,8 +16,7 @@ procedure caesar(char buf[LEN], int key)
 
 procedure main()
     char msg[LEN] = "hello world"
-    int key
-    key += 3
+    int key = 3
     printf("plain:  %s\n", msg)
     call caesar(msg, key)
     printf("cipher: %s\n", msg)

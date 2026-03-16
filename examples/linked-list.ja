@@ -27,21 +27,19 @@ procedure main()
     int head
     int alloc = 1
     int count
-    int a = 10
-    int b = 20
-    int c = 30
+    int vals[3] = {10, 20, 30}
 
     // Build list: 30 -> 20 -> 10 -> nil
-    call insert(pool, head, alloc, a, count)
-    call insert(pool, head, alloc, b, count)
-    call insert(pool, head, alloc, c, count)
+    call insert(pool, head, alloc, vals[0], count)
+    call insert(pool, head, alloc, vals[1], count)
+    call insert(pool, head, alloc, vals[2], count)
 
     printf("count=%d head=%d\n", count, head)
     show(pool)
 
     // Undo: uncall reverses all three inserts
-    uncall insert(pool, head, alloc, c, count)
-    uncall insert(pool, head, alloc, b, count)
-    uncall insert(pool, head, alloc, a, count)
+    uncall insert(pool, head, alloc, vals[2], count)
+    uncall insert(pool, head, alloc, vals[1], count)
+    uncall insert(pool, head, alloc, vals[0], count)
 
     printf("after undo: count=%d head=%d alloc=%d\n", count, head, alloc)
