@@ -49,6 +49,9 @@ def build_parser() -> argparse.ArgumentParser:
   parser.add_argument("-t", dest="timeout")
   parser.add_argument("-d", action="store_true", dest="debug")
   parser.add_argument("-e", action="store_true", dest="debug_on_error")
+  parser.add_argument("--circuit", action="store_true", dest="circuit")
+  parser.add_argument("--profile", action="store_true", dest="profile")
+  parser.add_argument("--inverse", dest="inverse_store", default=None)
   parser.add_argument("file")
   return parser
 
@@ -100,6 +103,25 @@ def main(argv: list[str] | None = None) -> int:
       signal.alarm(timeout_sec)
     program = parse_program(args.file, preprocessed.text, preprocessed.line_origins)
     validate_program(program)
+    if args.circuit:
+      from .circuit import synthesize_program
+      circuit = synthesize_program(program)
+      print(circuit.to_text())
+      return 0
+    if args.profile:
+      from .pebble import profile_space, format_profile
+      profile = profile_space(program)
+      print(format_profile(profile))
+      return 0
+    if args.inverse_store is not None:
+      from .inverse import run_inverse
+      final_store = json.loads(args.inverse_store)
+      result = run_inverse(program, final_store)
+      if not result.success:
+        print(result.error)
+        return 1
+      print(json.dumps(result.initial_store))
+      return 0
     if args.invert:
       program = invert_program(program)
     if args.ast:
