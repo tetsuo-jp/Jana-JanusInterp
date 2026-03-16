@@ -337,6 +337,8 @@ class Runtime:
     inferred_size: int | None = None
     if is_char and isinstance(init_expr, StringLiteral):
       inferred_size = len(self._char_literal_bytes(pos, init_expr.value))
+    elif isinstance(init_expr, ArrayExpr):
+      inferred_size = len(init_expr.items)
     sizes = [self._eval_expr(frame, dim) if dim is not None else None for dim in dimensions]
     if any(size is None for size in sizes):
       if len(dimensions) == 1 and sizes == [None] and inferred_size is not None:

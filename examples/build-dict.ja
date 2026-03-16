@@ -50,7 +50,7 @@ procedure build_dict(codes out, int i, int j, dict d)
     delocal char k = 0
 
 procedure main()
-    codes out[3] = {1, 2, 0}
+    codes out[] = {1, 2, 0}
     int i
     int j
     dict d

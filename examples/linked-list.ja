@@ -27,7 +27,7 @@ procedure main()
     int head
     int alloc = 1
     int count
-    int vals[3] = {10, 20, 30}
+    int vals[] = {10, 20, 30}
 
     // Build list: 30 -> 20 -> 10 -> nil
     call insert(pool, head, alloc, vals[0], count)
