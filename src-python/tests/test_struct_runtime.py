@@ -216,6 +216,79 @@ class StructRuntimeTests(unittest.TestCase):
       [{"x": 1, "y": 0}, {"x": 0, "y": 2}],
     )
 
+  def test_struct_initializer(self) -> None:
+    runtime = self.runtime_for(
+      """\
+      struct Pair {
+          int x,
+          int y
+      }
+
+      procedure main()
+          Pair p = {10, 20}
+          skip
+      """
+    )
+    runtime.run()
+    assert runtime._root_frame is not None
+    self.assertEqual(runtime._root_frame.vars["p"].value, {"x": 10, "y": 20})
+
+  def test_struct_array_initializer(self) -> None:
+    runtime = self.runtime_for(
+      """\
+      struct Pair {
+          int x,
+          int y
+      }
+
+      procedure main()
+          Pair ps[3] = {{1, 2}, {3, 4}, {5, 6}}
+          skip
+      """
+    )
+    runtime.run()
+    assert runtime._root_frame is not None
+    self.assertEqual(runtime._root_frame.vars["ps"].value, [{"x": 1, "y": 2}, {"x": 3, "y": 4}, {"x": 5, "y": 6}])
+
+  def test_nested_struct_initializer(self) -> None:
+    runtime = self.runtime_for(
+      """\
+      struct Inner {
+          int a,
+          int b
+      }
+
+      struct Outer {
+          int tag,
+          Inner inner
+      }
+
+      procedure main()
+          Outer o = {99, {1, 2}}
+          skip
+      """
+    )
+    runtime.run()
+    assert runtime._root_frame is not None
+    self.assertEqual(runtime._root_frame.vars["o"].value, {"tag": 99, "inner": {"a": 1, "b": 2}})
+
+  def test_partial_struct_initializer(self) -> None:
+    runtime = self.runtime_for(
+      """\
+      struct Pair {
+          int x,
+          int y
+      }
+
+      procedure main()
+          Pair p = {42}
+          skip
+      """
+    )
+    runtime.run()
+    assert runtime._root_frame is not None
+    self.assertEqual(runtime._root_frame.vars["p"].value, {"x": 42, "y": 0})
+
   def test_ternary_expression_selects_branch(self) -> None:
     runtime = self.runtime_for(
       """\

@@ -206,6 +206,8 @@ class Runtime:
     if vdecl.dimensions:
       return self._initial_array_value(frame, vdecl.pos, vdecl.ident.name, vdecl.dimensions, vdecl.init_expr, vdecl.typ)
     if vdecl.typ.kind == "struct":
+      if vdecl.init_expr is not None:
+        return self._init_struct_from_expr(frame, vdecl.typ, vdecl.pos, vdecl.init_expr), None, "struct", None
       return self._initial_struct_value(vdecl.typ, vdecl.pos), None, "struct", None
     if vdecl.typ.kind == "bool":
       return (False if vdecl.init_expr is None else bool(self._eval_expr(frame, vdecl.init_expr))), None, "bool", None
@@ -223,6 +225,52 @@ class Runtime:
     for field in struct_def.fields:
       value[field.ident.name] = self._zero_struct_field(field)
     return value
+
+  def _init_struct_from_expr(self, frame: Frame, typ, pos: SourcePos, expr: Expr) -> dict[str, object]:
+    """Initialize a struct from a C-style initializer like {1, 2}."""
+    struct_name = typ.name
+    if struct_name is None or struct_name not in self.struct_defs:
+      raise JanaError(pos, f"Unknown struct type `{struct_name or typ.kind}`")
+    struct_def = self.struct_defs[struct_name]
+    if not isinstance(expr, ArrayExpr):
+      raise JanaError(pos, f"Struct initializer must be a brace-enclosed list")
+    items = expr.items
+    if len(items) > len(struct_def.fields):
+      raise JanaError(pos, f"Too many initializers for struct `{struct_name}' (expected {len(struct_def.fields)}, got {len(items)})")
+    value: dict[str, object] = {}
+    for i, field in enumerate(struct_def.fields):
+      if i < len(items):
+        value[field.ident.name] = self._init_field_from_expr(frame, field, items[i])
+      else:
+        value[field.ident.name] = self._zero_struct_field(field)
+    return value
+
+  def _init_field_from_expr(self, frame: Frame, field: StructField, expr: Expr):
+    """Initialize a single struct field from an expression."""
+    if field.dimensions:
+      flat = self._flatten_array(frame, expr)
+      sizes = self._static_array_sizes(field.dimensions, field.ident.name, field.pos)
+      flat_size = 1
+      for s in sizes:
+        flat_size *= s
+      if field.typ.kind == "struct":
+        result = []
+        if isinstance(expr, ArrayExpr):
+          for item in expr.items:
+            result.append(self._init_struct_from_expr(frame, field.typ, field.pos, item))
+        while len(result) < flat_size:
+          result.append(self._zero_value_for_type(field.typ, field.pos))
+        return result
+      if len(flat) < flat_size:
+        flat.extend(self._zero_value_for_type(field.typ, field.pos) for _ in range(flat_size - len(flat)))
+      return flat
+    if field.typ.kind == "struct":
+      return self._init_struct_from_expr(frame, field.typ, field.pos, expr)
+    if field.typ.kind == "bool":
+      return bool(self._eval_expr(frame, expr))
+    if field.typ.kind == "stack":
+      return self._eval_expr(frame, expr)
+    return self._normalize_int(self._eval_expr(frame, expr), field.typ.int_type)
 
   def _zero_struct_field(self, field: StructField):
     if field.dimensions:
@@ -303,7 +351,14 @@ class Runtime:
     if init_expr is None:
       return [self._zero_value_for_type(typ, pos) for _ in range(flat_size)], [int(size) for size in sizes], "array", int_type
     if typ.kind == "struct":
-      raise JanaError(pos, "Struct array initializers are not implemented")
+      if not isinstance(init_expr, ArrayExpr):
+        raise JanaError(pos, f"Struct array initializer must be a brace-enclosed list")
+      flat = []
+      for item in init_expr.items:
+        flat.append(self._init_struct_from_expr(frame, typ, pos, item))
+      if len(flat) < flat_size:
+        flat.extend(self._zero_value_for_type(typ, pos) for _ in range(flat_size - len(flat)))
+      return flat, [int(size) for size in sizes], "array", int_type
     if typ.kind == "bool":
       flat = [bool(item) for item in self._flatten_array(frame, init_expr)]
     elif typ.kind == "stack":
@@ -948,6 +1003,8 @@ class Runtime:
     if decl.dimensions:
       return self._initial_array_value(frame, decl.pos, decl.ident.name, decl.dimensions, decl.init_expr, decl.typ)
     if decl.typ.kind == "struct":
+      if decl.init_expr is not None:
+        return self._init_struct_from_expr(frame, decl.typ, decl.pos, decl.init_expr), None, "struct", None
       return self._initial_struct_value(decl.typ, decl.pos), None, "struct", None
     if decl.typ.kind == "bool":
       return (False if decl.init_expr is None else bool(self._eval_expr(frame, decl.init_expr))), None, "bool", None
@@ -965,12 +1022,17 @@ class Runtime:
       if decl.typ.kind == "stack":
         return self._flatten_array(frame, decl.init_expr)
       if decl.typ.kind == "struct":
-        raise JanaError(decl.pos, "Struct array local initializers are not implemented")
+        if not isinstance(decl.init_expr, ArrayExpr):
+          raise JanaError(decl.pos, "Struct array initializer must be a brace-enclosed list")
+        flat = []
+        for item in decl.init_expr.items:
+          flat.append(self._init_struct_from_expr(frame, decl.typ, decl.pos, item))
+        return flat
       int_type = decl.typ.int_type if decl.typ.kind == "int" else None
       return self._flatten_initializer(frame, decl.pos, decl.init_expr, int_type, decl.typ.is_char)
     if decl.typ.kind == "struct":
       if decl.init_expr is not None:
-        raise JanaError(decl.pos, "Struct local initializers are not implemented")
+        return self._init_struct_from_expr(frame, decl.typ, decl.pos, decl.init_expr)
       return self._initial_struct_value(decl.typ, decl.pos)
     if decl.typ.kind == "bool":
       return False if decl.init_expr is None else bool(self._eval_expr(frame, decl.init_expr))
