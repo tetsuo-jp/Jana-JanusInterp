@@ -1,0 +1,42 @@
+// Janus Self-Interpreter: Opcode Tag Constants
+// Shared between interpreter.ja and encode.py
+
+// Statement tags
+#define S_ADDEQ  1
+#define S_SUBEQ  2
+#define S_XOREQ  3
+#define S_SWAP   4
+#define S_IF     5
+#define S_FROM   6
+#define S_CALL   7
+#define S_UNCALL 8
+#define S_SKIP   9
+#define S_BLOCK  10
+
+// Expression tags
+#define E_CONST  20
+#define E_VAR    21
+#define E_ARRIDX 22
+#define E_BINOP  23
+
+// Lvalue tags
+#define L_VAR    30
+#define L_ARRIDX 31
+
+// Binary operator codes
+#define OP_ADD   1
+#define OP_SUB   2
+#define OP_MUL   3
+#define OP_DIV   4
+#define OP_MOD   5
+#define OP_AND   6
+#define OP_OR    7
+#define OP_XOR   8
+#define OP_LT    9
+#define OP_GT    10
+#define OP_EQ    11
+#define OP_NEQ   12
+#define OP_LE    13
+#define OP_GE    14
+#define OP_LAND  15
+#define OP_LOR   16

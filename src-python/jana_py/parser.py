@@ -9,6 +9,8 @@ from typing import Sequence
 from .ast import ArrayExpr
 from .ast import AssertStmt
 from .ast import AssignStmt
+from .ast import BareDelocalStmt
+from .ast import BareLocalStmt
 from .ast import BinExpr
 from .ast import BinOpKind
 from .ast import Boolean
@@ -19,6 +21,8 @@ from .ast import Expr
 from .ast import FromStmt
 from .ast import Ident
 from .ast import IfStmt
+from .ast import AncillaBlockStmt
+from .ast import ForeachStmt
 from .ast import IntType
 from .ast import IterateStmt
 from .ast import LocalDecl
@@ -44,6 +48,8 @@ from .ast import StringLiteral
 from .ast import StructDef
 from .ast import StructField
 from .ast import SwapStmt
+from .ast import SwitchCase
+from .ast import SwitchStmt
 from .ast import TernaryExpr
 from .ast import TopExpr
 from .ast import Type
@@ -61,6 +67,7 @@ KEYWORDS = {
   "procedure", "main", "int", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64",
   "char", "string", "struct",
   "ancilla", "constant", "bool", "true", "false", "if", "then", "else", "fi",
+  "switch", "case", "default",
   "from", "do", "loop", "until", "push", "pop", "local", "delocal", "call", "uncall",
   "external", "error", "skip", "stack", "empty", "top", "size", "show", "print",
   "printf", "nil", "assert", "iterate", "by", "to", "end",
@@ -116,8 +123,11 @@ class TokenStream:
     self.tokens = tokens
     self.index = 0
 
-  def peek(self) -> Token:
-    return self.tokens[self.index]
+  def peek(self, n: int = 0) -> Token:
+    idx = self.index + n
+    if idx >= len(self.tokens):
+      return self.tokens[-1]
+    return self.tokens[idx]
 
   def consume(self) -> Token:
     token = self.peek()
@@ -240,12 +250,13 @@ class Parser:
       vdecls: list[Vdecl] = []
       while self._starts_vdecl():
         vdecls.append(self.parse_main_vdecl())
-      stmts = self.parse_stmt_block({"procedure", "EOF"})
+        self.expect_op(";")
+      stmts = self.parse_stmt_block({"procedure", "EOF"}, require_braces=True)
       if not stmts:
         raise JanaError(pos, "Expecting statement")
       return ProcMain(vdecls, stmts, pos)
     params = self.parse_params()
-    body = self.parse_stmt_block({"procedure", "EOF"})
+    body = self.parse_stmt_block({"procedure", "EOF"}, require_braces=True)
     if not body:
       raise JanaError(ident.pos, "Expecting statement")
     return Proc(ident, params, body)
@@ -303,34 +314,45 @@ class Parser:
       return Type("bool", token.pos)
     raise JanaError(token.pos, "Expecting type")
 
-  def parse_stmt_block(self, end_keywords: set[str]) -> list:
+  def parse_stmt_block(self, end_keywords: set[str], require_braces: bool = False) -> list:
+    if require_braces:
+      self.expect_op("{")
+    
     stmts = []
     while True:
       token = self.tokens.peek()
       if token.kind == "EOF":
         break
-      if token.kind == "KW" and token.value in end_keywords:
+      if not require_braces and token.kind == "KW" and token.value in end_keywords:
         break
-      stmts.append(self.parse_statement())
+      if require_braces and token.kind == "OP" and token.value == "}":
+        break
+      
+      stmt = self.parse_statement(end_keywords)
+      stmts.append(stmt)
+      
+      # Enforce semicolon for statements that are not blocks themselves
+      if not isinstance(stmt, (IfStmt, SwitchStmt, AncillaBlockStmt, ForeachStmt, FromStmt, IterateStmt)):
+        self.expect_op(";")
+        
+    if require_braces:
+      self.expect_op("}")
     return stmts
 
-  def parse_statement(self):
+  def parse_statement(self, end_keywords: set[str] = set()):
     token = self.tokens.peek()
-    if token.kind not in {"KW", "IDENT"}:
-      raise JanaError(
-        token.pos,
-        f'Unexpected "{token.value}"\n    Expecting "ancilla", "constant", "int", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64", "stack" or statement',
-      )
     if token.kind == "KW":
       dispatch = {
         "ancilla": self.parse_ancilla_stmt,
         "constant": self.parse_constant_stmt,
         "if": self.parse_if_stmt,
+        "switch": self.parse_switch_stmt,
         "from": self.parse_from_stmt,
         "iterate": self.parse_iterate_stmt,
         "push": self.parse_push_stmt,
         "pop": self.parse_pop_stmt,
         "local": self.parse_local_stmt,
+        "delocal": self.parse_bare_delocal_stmt,
         "call": self.parse_call_stmt,
         "uncall": self.parse_uncall_stmt,
         "error": self.parse_error_stmt,
@@ -342,7 +364,9 @@ class Parser:
       }
       if token.value in dispatch:
         return dispatch[token.value]()
-    return self.parse_assign_or_swap()
+    
+    res = self.parse_assign_or_swap()
+    return res
 
   def parse_assign_or_swap(self):
     try:
@@ -358,39 +382,61 @@ class Parser:
     if op := self.tokens.match("OP", "<=>"):
       right = self.parse_lval()
       return SwapStmt(left, right, op.pos)
-    for value, modop in [("+=", ModOp.ADD_EQ), ("-=", ModOp.SUB_EQ), ("^=", ModOp.XOR_EQ)]:
+    for value, modop in [("+=", ModOp.ADD_EQ), ("-=", ModOp.SUB_EQ), ("^=", ModOp.XOR_EQ), ("=", ModOp.ADD_EQ)]:
       if self.tokens.match("OP", value):
-        expr = self.parse_expression()
+        expr = self.parse_array_or_expr()
+        # If it's '=', we treat it as bulk initialization (ADD_EQ to zeroed array)
         return AssignStmt(modop, left, expr, pos)
     raise JanaError(self.tokens.peek().pos, "Expecting statement")
 
   def parse_if_stmt(self) -> IfStmt:
     pos = self.expect_kw("if").pos
+    self.expect_op("(")
     entry = self.parse_expression()
-    self.expect_kw("then")
-    if_part = self.parse_stmt_block({"else", "fi"})
+    self.expect_op(")")
+    
+    if_part = self.parse_stmt_block({"else", "fi"}, require_braces=True)
+    
     else_part: list = []
     if self.tokens.match("KW", "else"):
-      else_part = self.parse_stmt_block({"fi"})
+      else_part = self.parse_stmt_block({"fi"}, require_braces=True)
+    
     self.expect_kw("fi")
+    self.expect_op("(")
     exit_cond = self.parse_expression()
+    self.expect_op(")")
     return IfStmt(entry, if_part, else_part, exit_cond, pos)
 
   def parse_from_stmt(self) -> FromStmt:
     pos = self.expect_kw("from").pos
+    self.expect_op("(")
     entry = self.parse_expression()
-    do_part: list = []
-    loop_part: list = []
-    if self.tokens.match("KW", "do"):
-      do_part = self.parse_stmt_block({"loop", "until"})
-    if self.tokens.match("KW", "loop"):
-      loop_part = self.parse_stmt_block({"until"})
+    self.expect_op(")")
+    
+    do_part = self.parse_stmt_block({"loop", "until"}, require_braces=True)
+    
+    self.expect_kw("loop")
+    loop_part = self.parse_stmt_block({"until"}, require_braces=True)
+    
     self.expect_kw("until")
+    self.expect_op("(")
     exit_cond = self.parse_expression()
+    self.expect_op(")")
     return FromStmt(entry, do_part, loop_part, exit_cond, pos)
 
-  def parse_iterate_stmt(self) -> IterateStmt:
+  def parse_iterate_stmt(self) -> IterateStmt | ForeachStmt:
     pos = self.expect_kw("iterate").pos
+    if self.tokens.match("OP", "("):
+      typ = self.parse_type()
+      ident = self.parse_ident()
+      self.expect_op(":")
+      array_expr = self.parse_expression()
+      self.expect_op(")")
+      self.expect_op("{")
+      body = self.parse_stmt_block({"}"})
+      self.expect_op("}")
+      return ForeachStmt(typ, ident, array_expr, body, pos)
+    
     typ = self.parse_type()
     ident = self.parse_ident()
     self.expect_op("=")
@@ -400,9 +446,39 @@ class Parser:
       step = self.parse_expression()
     self.expect_kw("to")
     end = self.parse_expression()
-    body = self.parse_stmt_block({"end"})
-    self.expect_kw("end")
+    body = self.parse_stmt_block({"end"}, require_braces=True)
     return IterateStmt(typ, ident, start, step, end, body, pos)
+
+  def parse_switch_stmt(self) -> SwitchStmt:
+    pos = self.expect_kw("switch").pos
+    self.expect_op("(")
+    expr = self.parse_expression()
+    self.expect_op(")")
+    self.expect_op("{")
+    cases = []
+    default_part = []
+    while self.tokens.peek().kind != "EOF" and not (self.tokens.peek().kind == "OP" and self.tokens.peek().value == "}"):
+      if self.tokens.match("KW", "case"):
+        case_pos = self.tokens.peek().pos
+        val = self.parse_expression()
+        self.expect_op(":")
+        body = self.parse_stmt_block({"case", "default", "}"})
+        cases.append(SwitchCase(val, body, case_pos))
+        self.tokens.match("OP", ";") # Optional semicolon
+      elif self.tokens.match("KW", "default"):
+        self.expect_op(":")
+        default_part = self.parse_stmt_block({"case", "}"})
+        self.tokens.match("OP", ";") # Optional semicolon
+      else:
+        token = self.tokens.peek()
+        raise JanaError(token.pos, f'Unexpected "{token.value}"\n    Expecting "case", "default" or "}}"')
+    
+    self.expect_op("}")
+    self.expect_kw("switch")
+    self.expect_op("(")
+    exit_expr = self.parse_expression()
+    self.expect_op(")")
+    return SwitchStmt(expr, cases, default_part, exit_expr, pos)
 
   def parse_push_stmt(self) -> PushStmt:
     pos = self.expect_kw("push").pos
@@ -422,7 +498,19 @@ class Parser:
     self.expect_op(")")
     return PopStmt(expr, ident, pos)
 
-  def parse_ancilla_stmt(self) -> LocalStmt:
+  def parse_ancilla_stmt(self) -> LocalStmt | AncillaBlockStmt:
+    pos = self.tokens.peek().pos
+    if self.tokens.peek(1).kind == "OP" and self.tokens.peek(1).value == "(":
+      self.expect_kw("ancilla")
+      self.expect_op("(")
+      decls = [self.parse_local_decl_with_known_type(DeclType.ANCILLA, pos)]
+      while self.tokens.match("OP", ","):
+        decls.append(self.parse_local_decl_with_known_type(DeclType.ANCILLA, self.tokens.peek().pos))
+      self.expect_op(")")
+      self.expect_op("{")
+      body = self.parse_stmt_block({"}"})
+      self.expect_op("}")
+      return AncillaBlockStmt(decls, body, pos)
     return self._parse_single_decl_local("ancilla", DeclType.ANCILLA)
 
   def parse_constant_stmt(self) -> LocalStmt:
@@ -434,21 +522,38 @@ class Parser:
     body = self.parse_stmt_block({"procedure", "EOF", "else", "fi", "loop", "until", "delocal", "end"})
     return LocalStmt(decl, body, decl, pos)
 
-  def parse_local_stmt(self) -> LocalStmt:
+  # Block terminators that signal the delocal is at a different nesting level
+  _OUTER_TERMINATORS = {"fi", "else", "until", "loop", "end", "procedure", "EOF"}
+
+  def parse_local_stmt(self):
     pos = self.expect_kw("local").pos
     enters = [self.parse_local_decl()]
     while self.tokens.match("OP", ","):
       enters.append(self.parse_local_decl())
-    body = self.parse_stmt_block({"delocal"})
-    self.expect_kw("delocal")
-    exits = [self.parse_local_decl()]
-    while len(exits) < len(enters):
-      self.expect_op(",")
-      exits.append(self.parse_local_decl())
-    stmt = body
-    for enter_decl, exit_decl in reversed(list(zip(enters, exits))):
-      stmt = [LocalStmt(enter_decl, stmt, exit_decl, pos)]
-    return stmt[0]
+    # Parse body, stopping at delocal OR any outer block boundary
+    body = self.parse_stmt_block({"delocal"} | self._OUTER_TERMINATORS)
+    tok = self.tokens.peek()
+    if tok.kind == "KW" and tok.value == "delocal":
+      # Standard paired local/delocal at the same nesting level
+      self.expect_kw("delocal")
+      exits = [self.parse_local_decl()]
+      while len(exits) < len(enters):
+        self.expect_op(",")
+        exits.append(self.parse_local_decl())
+      stmt = body
+      for enter_decl, exit_decl in reversed(list(zip(enters, exits))):
+        stmt = [LocalStmt(enter_decl, stmt, exit_decl, pos)]
+      return stmt[0]
+    else:
+      # Bare local: delocal appears at a different nesting level (crossing pattern)
+      if len(enters) != 1:
+        raise JanaError(pos, "Multi-local not supported for crossing local/delocal")
+      return BareLocalStmt(enters[0], body, pos)
+
+  def parse_bare_delocal_stmt(self):
+    pos = self.expect_kw("delocal").pos
+    decl = self.parse_local_decl()
+    return BareDelocalStmt(decl, pos)
 
   def parse_local_decl(self) -> LocalDecl:
     pos = self.tokens.peek().pos
