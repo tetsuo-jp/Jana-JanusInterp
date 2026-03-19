@@ -120,7 +120,7 @@ class Runtime:
     mod_prime: int | None = None,
     debug: bool = False,
     debug_on_error: bool = False,
-    std: str = "janus",
+    std: str = "janus2026",
   ):
     self.program = program
     self.std = std

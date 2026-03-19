@@ -57,7 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     ),
     formatter_class=argparse.RawDescriptionHelpFormatter,
   )
-  parser.add_argument("--std", dest="std", choices=["janus", "jana", "janus1982"], default="janus", help="language standard: janus (default, C-style), jana (original Jana/Janus syntax), janus1982 (alias for jana)")
+  parser.add_argument("--std", dest="std", choices=["janus2026", "jana2014", "janus1982"], default="janus2026", help="language standard: janus2026 (default, C-style 2026), jana2014 (original Jana/Janus syntax), janus1982 (alias for jana2014)")
   parser.add_argument("-a", action="store_true", dest="ast", help="print the parsed AST as JSON")
   parser.add_argument("-i", action="store_true", dest="invert", help="invert the program; print source unless combined with execution modes")
   parser.add_argument("-c", action="store_true", dest="c_code", help="emit generated C code instead of running the program")
@@ -135,7 +135,7 @@ def main(argv: list[str] | None = None) -> int:
     if timeout_enabled:
       signal.signal(signal.SIGALRM, _timeout_handler)
       signal.alarm(timeout_sec)
-    if args.std == "jana":
+    if args.std == "jana2014":
       from .parser_jana import parse_program as parse_program_jana
       program = parse_program_jana(args.file, preprocessed.text, preprocessed.line_origins)
     elif args.std == "janus1982":
