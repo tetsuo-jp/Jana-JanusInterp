@@ -37,10 +37,10 @@ class CStyleSyntaxTests(unittest.TestCase):
           for (int i = 0; i < 3; i += 1) {
               switch (arr[i]) {
                   case 0:
-                      skip;
+                      assert true;
                       break;
                   default:
-                      skip;
+                      assert true;
                       break;
               } switch (arr[i]);
           }
@@ -57,7 +57,7 @@ class CStyleSyntaxTests(unittest.TestCase):
           int x;
           switch (x) {
               case 0:
-                  skip;
+                  assert true;
           } switch (x);
       }
       """
@@ -174,7 +174,7 @@ class CStyleSyntaxTests(unittest.TestCase):
       """\
       void main() {
           local int shown_count = 0, int shown_head = 0 {
-              skip;
+              assert true;
           } delocal int shown_count = 0, int shown_head = 0;
       }
       """
@@ -183,7 +183,7 @@ class CStyleSyntaxTests(unittest.TestCase):
       """\
       void main() {
           local int shown_count, int shown_head {
-              skip;
+              assert true;
           } delocal int shown_count, int shown_head;
       }
       """
@@ -243,7 +243,7 @@ class CStyleSyntaxTests(unittest.TestCase):
       """\
       void main() {
           local int dec[8] = {0} {
-              skip;
+              assert true;
           } delocal int dec[] = {0};
       }
       """
@@ -256,11 +256,11 @@ class CStyleSyntaxTests(unittest.TestCase):
       """\
       void main() {
           local int enc[8] = {0} {
-              skip;
+              assert true;
           } delocal int enc[8] = {0};
 
           local int dec[8] {
-              skip;
+              assert true;
           } delocal int dec[8];
       }
       """

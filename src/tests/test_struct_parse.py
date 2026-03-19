@@ -43,7 +43,7 @@ class StructParseTests(unittest.TestCase):
       }
 
       void bump(Pair p) {
-          skip;
+          assert true;
       }
       """
     )
@@ -62,7 +62,7 @@ class StructParseTests(unittest.TestCase):
 
         void main() {
             Pair p;
-            skip;
+            assert true;
         }
         """
       ),
@@ -86,7 +86,7 @@ class StructParseTests(unittest.TestCase):
         };
 
         void bump(Pair p) {
-            skip;
+            assert true;
         }
 
         void main() {
@@ -115,7 +115,7 @@ class StructParseTests(unittest.TestCase):
 
         void main() {
             Dict d;
-            skip;
+            assert true;
         }
         """
       ),
@@ -135,7 +135,7 @@ class StructParseTests(unittest.TestCase):
 
         void main() {
             Pair p;
-            skip;
+            assert true;
         }
         """
       ))
@@ -162,7 +162,7 @@ class StructParseTests(unittest.TestCase):
 
         void main() {
             Pair[3] ps;
-            skip;
+            assert true;
         }
         """
       ),
@@ -185,7 +185,7 @@ class StructParseTests(unittest.TestCase):
 
         void main() {
             Pair[2][2] ps;
-            skip;
+            assert true;
         }
         """
       ),
@@ -204,7 +204,7 @@ class StructParseTests(unittest.TestCase):
 
       void main() {
           Pair ps[3];
-          skip;
+          assert true;
       }
       """
     )

@@ -53,6 +53,9 @@ def run_with_input(source: str, stdin: str) -> str:
 
 class ProcedureDefinitionTests(unittest.TestCase):
 
+    def test_empty_main_is_accepted(self) -> None:
+        parse_program("<test>", "void main() {}")
+
     def test_void_style_roundtrip(self) -> None:
         source = textwrap.dedent("""\
             void main() {
@@ -66,16 +69,16 @@ class ProcedureDefinitionTests(unittest.TestCase):
             """)
         self.assertEqual(roundtrip(source), source)
 
-    def test_procedure_keyword_is_accepted(self) -> None:
-        # `procedure` style parses fine (no assertion on format)
-        parse_program("<test>", textwrap.dedent("""\
-            procedure main()
-            int x
-            call inc(x)
+    def test_procedure_keyword_is_rejected(self) -> None:
+        with self.assertRaises(JanaError):
+            parse_program("<test>", textwrap.dedent("""\
+                procedure main()
+                int x
+                call inc(x)
 
-            procedure inc(int x)
-            x += 1
-            """))
+                procedure inc(int x)
+                x += 1
+                """))
 
     def test_multiple_params(self) -> None:
         source = textwrap.dedent("""\
@@ -109,8 +112,8 @@ class ProcedureDefinitionTests(unittest.TestCase):
     def test_multiple_main_is_error(self) -> None:
         with self.assertRaises(JanaError):
             parse_program("<test>", textwrap.dedent("""\
-                void main() { skip; }
-                void main() { skip; }
+                void main() { assert true; }
+                void main() { assert true; }
                 """))
 
 
@@ -133,7 +136,7 @@ class VariableDeclarationTests(unittest.TestCase):
                 u32 h;
                 u64 i;
                 bool j;
-                skip;
+                assert true;
             }
             """)
         self.assertEqual(roundtrip(source), source)
@@ -142,7 +145,7 @@ class VariableDeclarationTests(unittest.TestCase):
         prog = parse_program("<test>", textwrap.dedent("""\
             void main() {
                 int x1, x2, x3;
-                skip;
+                assert true;
             }
             """))
         self.assertEqual(len(prog.main.vdecls), 3)
@@ -176,7 +179,7 @@ class VariableDeclarationTests(unittest.TestCase):
         parse_program("<test>", textwrap.dedent("""\
             void main() {
                 bool flag = true;
-                skip;
+                assert true;
             }
             """))
 
@@ -399,7 +402,7 @@ class SwitchStatementTests(unittest.TestCase):
                     int x;
                     switch (x) {
                         case 0:
-                            skip;
+                            assert true;
                     } switch (x);
                 }
                 """))
@@ -476,7 +479,7 @@ class ForLoopTests(unittest.TestCase):
                 }
                 printf("%d\\n", sum);
             }
-            """)), "10\n")
+            """)), "10\n\n")
 
 
 # ---------------------------------------------------------------------------
@@ -517,7 +520,7 @@ class IterateTests(unittest.TestCase):
                 end
                 printf("%d\\n", sum);
             }
-            """)), "15\n")
+            """)), "15\n\n")
 
 
 # ---------------------------------------------------------------------------
@@ -672,7 +675,7 @@ class CallUncallTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# I/O: printf, scanf, skip, assert
+# I/O: printf, scanf, assert
 # ---------------------------------------------------------------------------
 
 class IoStatementTests(unittest.TestCase):
@@ -707,13 +710,13 @@ class IoStatementTests(unittest.TestCase):
             "42\n",
         )
 
-    def test_skip_roundtrip(self) -> None:
-        source = textwrap.dedent("""\
-            void main() {
-                skip;
-            }
-            """)
-        self.assertEqual(roundtrip(source), source)
+    def test_skip_keyword_is_rejected(self) -> None:
+        with self.assertRaises(JanaError):
+            parse_program("<test>", textwrap.dedent("""\
+                void main() {
+                    skip;
+                }
+                """))
 
     def test_assert_passes(self) -> None:
         run(textwrap.dedent("""\
@@ -916,7 +919,7 @@ class StructTests(unittest.TestCase):
             };
 
             void main() {
-                skip;
+                assert true;
             }
             """))
 
@@ -970,7 +973,7 @@ class ParseErrorTests(unittest.TestCase):
         with self.assertRaises(JanaError):
             parse_program("<test>", textwrap.dedent("""\
                 int main() {
-                    skip;
+                    assert true;
                 }
                 """))
 

@@ -141,7 +141,7 @@ class CharArraySupportTests(unittest.TestCase):
       """\
       void main() {
           char s[5] = "abc";
-          skip;
+          assert true;
       }
       """
     )
@@ -252,7 +252,7 @@ class CharArraySupportTests(unittest.TestCase):
       """\
       void main() {
           char s[3] = "abc";
-          skip;
+          assert true;
       }
       """
     )

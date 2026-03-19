@@ -48,9 +48,10 @@ class PreprocessEscapeTests(unittest.TestCase):
     result = self.run_case(
       """\
       #define MSG 42
-      procedure main()
+      void main() {
           // MSG should not expand here
-          print("MSG")
+          printf("MSG");
+      }
       """
     )
     self.assertEqual(result.returncode, 0)
@@ -61,8 +62,9 @@ class PreprocessEscapeTests(unittest.TestCase):
     result = self.run_case(
       """\
       #define MSG 42
-      procedure main()
-          print("MSG \\\" MSG \\\\ MSG")
+      void main() {
+          printf("MSG \\\" MSG \\\\ MSG");
+      }
       """
     )
     self.assertEqual(result.returncode, 0)
@@ -77,8 +79,9 @@ class PreprocessEscapeTests(unittest.TestCase):
         """,
         "main.ja": """\
         #include "defs.ja"
-        procedure main()
-            print(MSG)
+        void main() {
+            printf(MSG);
+        }
         """,
       },
       "main.ja",
@@ -91,8 +94,9 @@ class PreprocessEscapeTests(unittest.TestCase):
     result = self.run_case(
       """\
       #define ID(x) x
-      procedure main()
-          print(ID("a\\n\\\\\\\"b"))
+      void main() {
+          printf(ID("a\\n\\\\\\\"b"));
+      }
       """
     )
     self.assertEqual(result.returncode, 0)
@@ -103,8 +107,9 @@ class PreprocessEscapeTests(unittest.TestCase):
     result = self.run_case(
       """\
       #define ID(x) x
-      procedure main()
-          print(ID("a,b"))
+      void main() {
+          printf(ID("a,b"));
+      }
       """
     )
     self.assertEqual(result.returncode, 0)

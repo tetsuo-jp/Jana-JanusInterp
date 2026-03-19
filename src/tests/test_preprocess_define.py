@@ -39,9 +39,10 @@ class PreprocessDefineTests(unittest.TestCase):
     result = self.run_case(
       """\
       #define X 333
-      procedure main()
-          int x = X
-          printf("%d", x)
+      void main() {
+          int x = X;
+          printf("%d", x);
+      }
       """
     )
     self.assertEqual(result.returncode, 0)
@@ -52,9 +53,10 @@ class PreprocessDefineTests(unittest.TestCase):
     result = self.run_case(
       """\
       #define N 4
-      procedure main()
-          int a[N]
-          show(a)
+      void main() {
+          int a[N];
+          assert true;
+      }
       """,
       ["-a"],
     )
@@ -67,9 +69,10 @@ class PreprocessDefineTests(unittest.TestCase):
       """\
       #define VALUE 9
       #define X VALUE
-      procedure main()
-          int x = X
-          printf("%d", x)
+      void main() {
+          int x = X;
+          printf("%d", x);
+      }
       """
     )
     self.assertEqual(result.returncode, 0)
@@ -80,9 +83,10 @@ class PreprocessDefineTests(unittest.TestCase):
       """\
       #define X 9
       #undef X
-      procedure main()
-          int x = 4
-          printf("%d", x)
+      void main() {
+          int x = 4;
+          printf("%d", x);
+      }
       """
     )
     self.assertEqual(result.returncode, 0)
@@ -93,9 +97,10 @@ class PreprocessDefineTests(unittest.TestCase):
       """\
       #define SUM 300 + \\
       33
-      procedure main()
-          int x = SUM
-          printf("%d", x)
+      void main() {
+          int x = SUM;
+          printf("%d", x);
+      }
       """
     )
     self.assertEqual(result.returncode, 0)
@@ -105,9 +110,10 @@ class PreprocessDefineTests(unittest.TestCase):
     result = self.run_case(
       """\
       #define ADD(x, y) ((x) + (y))
-      procedure main()
-          int x = ADD(300, 33)
-          printf("%d", x)
+      void main() {
+          int x = ADD(300, 33);
+          printf("%d", x);
+      }
       """
     )
     self.assertEqual(result.returncode, 0)
@@ -117,9 +123,10 @@ class PreprocessDefineTests(unittest.TestCase):
     result = self.run_case(
       """\
       #define WRAP(x) x
-      procedure main()
-          int x = WRAP((300 + 33))
-          printf("%d", x)
+      void main() {
+          int x = WRAP((300 + 33));
+          printf("%d", x);
+      }
       """
     )
     self.assertEqual(result.returncode, 0)
@@ -130,21 +137,22 @@ class PreprocessDefineTests(unittest.TestCase):
       """\
       #define code int
       #define codes code[]
-      procedure fill(codes out)
-          out[0] += 4
-          out[1] += 5
+      void fill(codes out) {
+          out[0] += 4;
+          out[1] += 5;
+      }
 
-      procedure main()
-          int out[2]
-          call fill(out)
-          show(out)
+      void main() {
+          int out[2];
+          call fill(out);
+          printf("%d %d", out[0], out[1]);
+      }
       """
     )
     self.assertEqual(result.returncode, 0)
-    self.assertEqual(result.stdout, "out[2] = {4, 5}\n")
+    self.assertEqual(result.stdout, "4 5\n")
     self.assertEqual(
       result.stderr,
-      "Warning: `show` is deprecated; use `printf` instead.\n"
       "Warning: non-zero values remain at end of execution: out\n",
     )
 
@@ -153,17 +161,17 @@ class PreprocessDefineTests(unittest.TestCase):
       """\
       #define code int
       #define codes code[]
-      procedure main()
-          codes out[2]
-          out[0] += 1
-          show(out)
+      void main() {
+          codes out[2];
+          out[0] += 1;
+          printf("%d %d", out[0], out[1]);
+      }
       """
     )
     self.assertEqual(result.returncode, 0)
-    self.assertEqual(result.stdout, "out[2] = {1, 0}\n")
+    self.assertEqual(result.stdout, "1 0\n")
     self.assertEqual(
       result.stderr,
-      "Warning: `show` is deprecated; use `printf` instead.\n"
       "Warning: non-zero values remain at end of execution: out\n",
     )
 

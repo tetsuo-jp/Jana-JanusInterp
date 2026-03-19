@@ -4,12 +4,13 @@ from jana_py.cli import main
 
 def test_optional_fi_modern(capsys, tmp_path):
     source = """
-    procedure main()
-        int v
-        if v = 0 then
-            v += 0
-        fi
-        printf("%d\\n", v)
+    void main() {
+        int v;
+        if (v = 0) {
+            v += 0;
+        } fi
+        printf("%d\\n", v);
+    }
     """
     path = tmp_path / "opt_fi.ja"
     path.write_text(textwrap.dedent(source))
@@ -20,12 +21,13 @@ def test_optional_fi_modern(capsys, tmp_path):
 
 def test_optional_fi_modern_with_keyword(capsys, tmp_path):
     source = """
-    procedure main()
-        int v
-        if v = 0 then
-            v += 0
-        fi v = 0
-        printf("%d\\n", v)
+    void main() {
+        int v;
+        if (v = 0) {
+            v += 0;
+        } fi (v = 0)
+        printf("%d\\n", v);
+    }
     """
     path = tmp_path / "opt_fi_kw.ja"
     path.write_text(textwrap.dedent(source))

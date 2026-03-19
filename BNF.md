@@ -26,10 +26,10 @@
 予約語:
 
 ```text
-procedure void main int i8 i16 i32 i64 u8 u16 u32 u64
+void main int i8 i16 i32 i64 u8 u16 u32 u64
 char string struct ancilla constant bool true false if then else fi
 for from do loop until push pop local delocal call uncall
-external error skip stack empty top size show print printf nil
+external error stack empty top size printf nil
 assert iterate by to end read write switch case default break scanf
 ```
 
@@ -42,7 +42,7 @@ assert iterate by to end read write switch case default break scanf
              | <top-item> <top-list>
 
 <top-item> ::= <struct-def>
-             | <procedure-def>
+             | <proc-def>
              | <main-def>
 ```
 
@@ -68,12 +68,9 @@ assert iterate by to end read write switch case default break scanf
 ## 手続きと main
 
 ```bnf
-<procedure-def> ::= "procedure" <identifier> <params> <stmt-block-no-braces>
-                  | "void" <identifier> <params> <brace-stmt-block>
+<proc-def> ::= "void" <identifier> <params> <brace-stmt-block>
 
-<main-def> ::= "procedure" "main" <main-vdecls> <stmt-block-no-braces>
-             | "procedure" "main" "(" ")" <main-vdecls> <stmt-block-no-braces>
-             | "void" "main" "{" <main-vdecls> <stmt-list> "}"
+<main-def> ::= "void" "main" "{" <main-vdecls> <stmt-list> "}"
              | "void" "main" "(" ")" "{" <main-vdecls> <stmt-list> "}"
 
 <params> ::= "(" ")"
@@ -160,13 +157,10 @@ assert iterate by to end read write switch case default break scanf
               | <uncall-stmt>
               | <bare-call-stmt>
               | <error-stmt>
-              | <print-stmt>
               | <printf-stmt>
               | <scanf-stmt>
-              | <show-stmt>
               | <read-stmt>
               | <write-stmt>
-              | <skip-stmt>
               | <assert-stmt>
               | <assign-stmt>
               | <swap-stmt>
@@ -291,13 +285,10 @@ assert iterate by to end read write switch case default break scanf
              | "(" <expr-list> ")"
 
 <error-stmt> ::= "error" "(" <string-literal> ")"
-<print-stmt> ::= "print" "(" <string-literal> ")"
 <printf-stmt> ::= "printf" "(" <string-literal> <printf-args-opt> ")"
 <scanf-stmt> ::= "scanf" "(" <string-literal> <printf-args-opt> ")"
-<show-stmt> ::= "show" "(" <identifier-list> ")"
 <read-stmt> ::= "read" <lval>
 <write-stmt> ::= "write" <lval>
-<skip-stmt> ::= "skip"
 <assert-stmt> ::= "assert" <expression>
 
 <printf-args-opt> ::= ""
@@ -309,8 +300,6 @@ assert iterate by to end read write switch case default break scanf
 <printf-arg> ::= <identifier>
                | <lval-with-selector>
 
-<identifier-list> ::= <identifier>
-                    | <identifier> "," <identifier-list>
 ```
 
 ### 代入・交換
@@ -434,4 +423,4 @@ assert iterate by to end read write switch case default break scanf
 
 これらは「どこで止まるか」が周囲のキーワード (`else`, `fi`, `loop`, `until`, `end`, `delocal` など) に依存する実装都合の補助規則です。
 
-`main` と通常の `procedure` は、実装上は本体が少なくとも 1 文必要です。
+`void main() { ... }` の本体は空でも受理されます。通常の手続き本体は、実装上は少なくとも 1 文必要です。

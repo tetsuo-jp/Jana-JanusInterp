@@ -1703,13 +1703,14 @@ class Runtime:
     try:
       if current.value != start:
         raise JanaError(stmt.pos, "Assertion failed: should be true", contextual=True)
-      while current.value != end + step:
+      stop = end if stmt.exclusive else end + step
+      while current.value != stop:
         if current.value != start and current.value == start:
           raise JanaError(stmt.pos, "Assertion failed: should be false", contextual=True)
         self._exec_block(frame, stmt.body, record_stmt=record_stmt, record_nested=record_nested, allow_break=False)
         current.value += step
     finally:
-      expected = end + step
+      expected = end if stmt.exclusive else end + step
       actual = current.value
       if existing is None:
         del frame.vars[stmt.ident.name]

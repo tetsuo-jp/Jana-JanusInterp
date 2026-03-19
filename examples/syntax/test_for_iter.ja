@@ -1,0 +1,11 @@
+// Minimal test: for loop iterator final value
+// for (int i = 0; i < 3; i += 1) should iterate i = 0, 1, 2
+// and i should be 3 (= end) after the loop for delocal check.
+void main() {
+    int sum;
+    for (int i = 0; i < 3; i += 1) {
+        sum += i;
+    }
+    // sum should be 0+1+2 = 3
+    printf("%d\n", sum);
+}

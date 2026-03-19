@@ -42,7 +42,6 @@ from .ast import ProcMain
 from .ast import Program
 from .ast import PushStmt
 from .ast import SizeExpr
-from .ast import SkipStmt
 from .ast import SourcePos
 from .ast import StringLiteral
 from .ast import StructDef
@@ -62,14 +61,14 @@ from .preprocess import LineOrigin
 
 
 KEYWORDS = {
-  "procedure", "void", "main", "int", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64",
+  "void", "main", "int", "i8", "i16", "i32", "i64", "u8", "u16", "u32", "u64",
   "char", "string", "struct",
   "ancilla", "constant", "bool", "true", "false", "if", "then", "else", "fi",
   "for",
   "from", "do", "loop", "until", "push", "pop", "local", "delocal", "call", "uncall",
-  "external", "error", "skip", "stack", "empty", "top", "size", "show", "print",
+  "external", "error", "stack", "empty", "top", "size",
   "printf", "nil", "assert", "iterate", "by", "to", "end",
-  "read", "write",
+  "read", "write", "show", "print",
   "switch", "case", "default", "break",
   "scanf",
 }
@@ -219,7 +218,7 @@ class Parser:
       else:
         procs.append(proc_or_main)
     if len(mains) > 1:
-      raise JanaError(self.tokens.peek().pos, 'Unexpected end of input\n    Expecting "void", "procedure" or end of input\n    Multiple main procedures has been defined')
+      raise JanaError(self.tokens.peek().pos, 'Unexpected end of input\n    Expecting "void" or end of input\n    Multiple main procedures has been defined')
     return Program(mains[0] if mains else None, procs, struct_defs)
 
   def parse_struct_def(self) -> StructDef:
@@ -246,10 +245,9 @@ class Parser:
 
   def parse_procedure(self) -> ProcMain | Proc:
     start = self.tokens.peek()
-    if start.kind != "KW" or start.value not in {"void", "procedure"}:
-      raise JanaError(start.pos, f'Unexpected "{start.value}"\n    Expecting "void" or "procedure"')
+    if start.kind != "KW" or start.value != "void":
+      raise JanaError(start.pos, f'Unexpected "{start.value}"\n    Expecting "void"')
     self.tokens.consume()
-    c_style = (start.value == "void")
     ident = self.parse_ident(allow_main=True)
     if ident.name == "main":
       pos = ident.pos
@@ -257,26 +255,15 @@ class Parser:
         self.expect_op("(")
         self.expect_op(")")
       vdecls: list[Vdecl] = []
-      if c_style:
-        self.expect_op("{")
-        while self._starts_vdecl():
-          vdecls.extend(self.parse_main_vdecl())
-          self.expect_op(";")
-        stmts = self.parse_stmt_block({"void", "procedure", "EOF"})
-        self.expect_op("}")
-      else:
-        while self._starts_vdecl():
-          vdecls.extend(self.parse_main_vdecl())
-          self.expect_op(";")
-        stmts = self.parse_stmt_block({"void", "procedure", "EOF"})
-      if not stmts:
-        raise JanaError(pos, "Expecting statement")
+      self.expect_op("{")
+      while self._starts_vdecl():
+        vdecls.extend(self.parse_main_vdecl())
+        self.expect_op(";")
+      stmts = self.parse_stmt_block({"void", "EOF"})
+      self.expect_op("}")
       return ProcMain(vdecls, stmts, pos)
     params = self.parse_params()
-    if c_style:
-      body = self.parse_stmt_block({"void", "procedure", "EOF"}, require_braces=True)
-    else:
-      body = self.parse_stmt_block({"void", "procedure", "EOF"})
+    body = self.parse_stmt_block({"void", "EOF"}, require_braces=True)
     if not body:
       raise JanaError(ident.pos, "Expecting statement")
     return Proc(ident, params, body)
@@ -388,15 +375,14 @@ class Parser:
         "call": self.parse_call_stmt,
         "uncall": self.parse_uncall_stmt,
         "error": self.parse_error_stmt,
-        "print": self.parse_print_stmt,
         "printf": self.parse_printf_stmt,
-        "show": self.parse_show_stmt,
         "switch": self.parse_switch_stmt,
         "scanf": self.parse_scanf_stmt,
-        "skip": self.parse_skip_stmt,
         "assert": self.parse_assert_stmt,
         "read": self.parse_read_stmt,
         "write": self.parse_write_stmt,
+        "show": self.parse_show_stmt,
+        "print": self.parse_print_stmt,
       }
       if token.value in dispatch:
         return dispatch[token.value]()
@@ -547,7 +533,7 @@ class Parser:
     self.expect_op(")")
     body = self.parse_stmt_block(set(), require_braces=True)
     end = self._for_cond_to_end(cond, ident)
-    return IterateStmt(typ, ident, start, step, end, body, pos)
+    return IterateStmt(typ, ident, start, step, end, body, pos, exclusive=True)
 
   def _for_cond_to_end(self, cond: Expr, ident: Ident) -> Expr:
     if (
@@ -587,7 +573,7 @@ class Parser:
   def _parse_single_decl_local(self, keyword: str, decl_type: DeclType) -> LocalStmt:
     pos = self.expect_kw(keyword).pos
     decl = self.parse_local_decl_with_known_type(decl_type, pos)
-    body = self.parse_stmt_block({"procedure", "EOF", "else", "fi", "loop", "until", "delocal", "end"})
+    body = self.parse_stmt_block({"void", "EOF", "else", "fi", "loop", "until", "delocal", "end"})
     return LocalStmt(decl, body, decl, pos)
 
   def parse_local_stmt(self) -> LocalStmt:
@@ -666,13 +652,6 @@ class Parser:
     self.expect_op(")")
     return UserErrorStmt(message, pos)
 
-  def parse_print_stmt(self) -> PrintsStmt:
-    pos = self.expect_kw("print").pos
-    self.expect_op("(")
-    text = self.parse_string()
-    self.expect_op(")")
-    return PrintsStmt(Prints("print", text=text), pos)
-
   def parse_printf_stmt(self) -> PrintsStmt:
     pos = self.expect_kw("printf").pos
     self.expect_op("(")
@@ -702,15 +681,6 @@ class Parser:
     args = self.parse_arg_list()
     return CallStmt(ident, args, False, ident.pos)
 
-  def parse_show_stmt(self) -> PrintsStmt:
-    pos = self.expect_kw("show").pos
-    self.expect_op("(")
-    idents = [self.parse_ident()]
-    while self.tokens.match("OP", ","):
-      idents.append(self.parse_ident())
-    self.expect_op(")")
-    return PrintsStmt(Prints("show", args=idents), pos)
-
   def parse_read_stmt(self) -> PrintsStmt:
     pos = self.expect_kw("read").pos
     lval = self.parse_lval()
@@ -721,15 +691,27 @@ class Parser:
     lval = self.parse_lval()
     return PrintsStmt(Prints("write", args=[lval]), pos)
 
+  def parse_show_stmt(self) -> PrintsStmt:
+    pos = self.expect_kw("show").pos
+    self.expect_op("(")
+    args: list[Ident | Lval] = [self._parse_printf_arg()]
+    while self.tokens.match("OP", ","):
+      args.append(self._parse_printf_arg())
+    self.expect_op(")")
+    return PrintsStmt(Prints("show", args=args), pos)
+
+  def parse_print_stmt(self) -> PrintsStmt:
+    pos = self.expect_kw("print").pos
+    text: str | None = None
+    if self.tokens.peek().kind == "STRING":
+      text = self.tokens.next().value
+    return PrintsStmt(Prints("print", text=text, args=[]), pos)
+
   def _parse_printf_arg(self) -> Ident | Lval:
     lval = self.parse_lval()
     if not lval.selectors:
       return lval.ident
     return lval
-
-  def parse_skip_stmt(self) -> SkipStmt:
-    pos = self.expect_kw("skip").pos
-    return SkipStmt(pos)
 
   def parse_assert_stmt(self) -> AssertStmt:
     pos = self.expect_kw("assert").pos
@@ -911,7 +893,7 @@ class Parser:
     if token.kind == "KW" and token.value in {
       "if", "from", "switch", "case", "default", "break",
       "push", "pop", "local", "delocal", "call", "uncall",
-      "procedure", "skip", "error", "printf", "show", "iterate"
+      "void", "error", "printf", "iterate"
     }:
       return False
     if token.kind == "EOF" or (token.kind == "OP" and token.value in {"}", ";"}):

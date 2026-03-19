@@ -275,6 +275,7 @@ class IterateStmt(Stmt):
   end_expr: Expr
   body: list[Stmt]
   pos: SourcePos
+  exclusive: bool = False  # True for C-style `for (i < end)`, False for `iterate i to end`
 
 
 @dataclass(frozen=True)
