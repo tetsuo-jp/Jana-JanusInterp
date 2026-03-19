@@ -1,0 +1,15 @@
+; Simple counter loop demonstrating from/loop/until in 1982 Janus
+; Counts from 0 to n-1, accumulating sum = 0+1+2+...+(n-1)
+
+n
+sum
+i
+
+procedure main
+    n += 5
+    from i=0
+    loop sum += i
+         i += 1
+    until i=n
+    i -= n
+    write sum   ; should print 10  (0+1+2+3+4)

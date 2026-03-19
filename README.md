@@ -49,19 +49,24 @@ Or, to run it directly using stack, use
 
 ## Python Interpreter
 
-The repository also contains a Python implementation under `src-python/`.
-To run it from the repository root, set `PYTHONPATH` to `src-python` and invoke
-the CLI module directly:
+The repository also contains a Python implementation under `src/`.
+From the repository root, the simplest entry points are the provided `make`
+targets:
 
-    PYTHONPATH=src-python python3 -m jana_py.cli examples/fib.ja
+    make run EXAMPLE=examples/fib.ja
+    make debug EXAMPLE=examples/fib.ja
+    make invert EXAMPLE=examples/fib.ja
 
-You can also pass the existing CLI flags, for example:
+You can also invoke the CLI module directly by setting `PYTHONPATH` to `src`:
 
-    PYTHONPATH=src-python python3 -m jana_py.cli -i examples/fib.ja
-    PYTHONPATH=src-python python3 -m jana_py.cli -d examples/fib.ja
+    PYTHONPATH=src python3 -m jana_py.cli examples/fib.ja
+    PYTHONPATH=src python3 -m jana_py.cli -i examples/fib.ja
+    PYTHONPATH=src python3 -m jana_py.cli -d examples/fib.ja
 
-To run the Python-side regression wrapper, use:
+Useful Python-side checks:
 
-    python3 src-python/tests/run_release_candidate.py
+    make smoke
+    make test
+    make rc
 
 Python-side extended examples live under `examples/`; `examples/build-dict.ja` exercises preprocessor macros, ternary expressions, and struct array fields added in the Python implementation.

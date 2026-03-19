@@ -1,0 +1,371 @@
+// Janus Self-Interpreter
+// A Janus interpreter written in Janus (Janus-0 subset).
+// Based on Yokoyama & Glück (PEPM 2007).
+//
+// Key property: uncall exec_stmts(...) runs the target program backwards.
+//
+// Encoding: code[] is a flat integer array with prefix-tagged instructions.
+// Each construct: [TAG, TOTAL_LEN, ...payload..., TOTAL_LEN]
+
+#include "opcodes.ja"
+
+// ── Expression evaluation ────────────────────────────────────────────
+// result must be 0 on entry; holds the value on exit.
+
+procedure eval_expr(int code[], int store[], int pc, int result)
+    switch (code[pc]) {
+        case E_CONST:
+            result += code[pc + 2];
+            break;
+        case E_VAR:
+            result += store[code[pc + 2]];
+            break;
+        case E_BINOP:
+            call eval_binop(code, store, pc, result);
+            break;
+        case E_ARRIDX:
+            call eval_arridx(code, store, pc, result);
+            break;
+    } switch (code[pc])
+
+procedure eval_binop(int code[], int store[], int pc, int result)
+    // [E_BINOP, len, op, left_expr..., right_expr..., len]
+    local int op = code[pc + 2]
+        local int lpc = pc + 3
+            local int lv = 0
+                call eval_expr(code, store, lpc, lv)
+                local int rpc = lpc + code[lpc + 1]
+                    local int rv = 0
+                        call eval_expr(code, store, rpc, rv)
+                        call apply_binop(op, lv, rv, result)
+                        uncall eval_expr(code, store, rpc, rv)
+                    delocal int rv = 0
+                delocal int rpc = lpc + code[lpc + 1]
+                uncall eval_expr(code, store, lpc, lv)
+            delocal int lv = 0
+        delocal int lpc = pc + 3
+    delocal int op = code[pc + 2]
+
+procedure apply_binop(int op, int a, int b, int result)
+    switch (op) {
+        case OP_ADD:
+            result += a + b;
+            break;
+        case OP_SUB:
+            result += a - b;
+            break;
+        case OP_MUL:
+            result += a * b;
+            break;
+        case OP_DIV:
+            result += a / b;
+            break;
+        case OP_MOD:
+            result += a % b;
+            break;
+        case OP_AND:
+            result += a & b;
+            break;
+        case OP_OR:
+            result += a | b;
+            break;
+        case OP_XOR:
+            result += a ^ b;
+            break;
+        case OP_LT:
+            result += (a < b ? 1 : 0);
+            break;
+        case OP_GT:
+            result += (a > b ? 1 : 0);
+            break;
+        case OP_EQ:
+            result += (a = b ? 1 : 0);
+            break;
+        case OP_NEQ:
+            result += (a != b ? 1 : 0);
+            break;
+        case OP_LE:
+            result += (a <= b ? 1 : 0);
+            break;
+        case OP_GE:
+            result += (a >= b ? 1 : 0);
+            break;
+        case OP_LAND:
+            result += (a != 0 && b != 0 ? 1 : 0);
+            break;
+        case OP_LOR:
+            result += (a != 0 || b != 0 ? 1 : 0);
+            break;
+    } switch (op)
+
+procedure eval_arridx(int code[], int store[], int pc, int result)
+    // [E_ARRIDX, len, base_slot, idx_expr..., len]
+    local int base = code[pc + 2]
+        local int ipc = pc + 3
+            local int idx = 0
+                call eval_expr(code, store, ipc, idx)
+                result += store[base + idx]
+                uncall eval_expr(code, store, ipc, idx)
+            delocal int idx = 0
+        delocal int ipc = pc + 3
+    delocal int base = code[pc + 2]
+
+// ── Lvalue resolution ────────────────────────────────────────────────
+
+procedure resolve_lval(int code[], int store[], int pc, int slot)
+    switch (code[pc]) {
+        case L_VAR:
+            slot += code[pc + 2];
+            break;
+        case L_ARRIDX:
+            local int base = code[pc + 2]
+                local int ipc = pc + 3
+                    local int idx = 0
+                        call eval_expr(code, store, ipc, idx)
+                        slot += base + idx
+                        uncall eval_expr(code, store, ipc, idx)
+                    delocal int idx = 0
+                delocal int ipc = pc + 3
+            delocal int base = code[pc + 2];
+            break;
+    } switch (code[pc])
+
+// ── Statement execution (recursive list traversal) ───────────────────
+
+procedure exec_stmts(int code[], int store[], int procs[], int pc, int n)
+    if n != 0 then
+        call dispatch(code, store, procs, pc)
+        local int slen = code[pc + 1]
+            pc += slen
+            n -= 1
+            call exec_stmts(code, store, procs, pc, n)
+            n += 1
+            pc -= slen
+        delocal int slen = code[pc + 1]
+    fi n != 0
+
+procedure dispatch(int code[], int store[], int procs[], int pc)
+    switch (code[pc]) {
+        case S_ADDEQ:
+            call exec_addeq(code, store, pc);
+            break;
+        case S_SUBEQ:
+            call exec_subeq(code, store, pc);
+            break;
+        case S_XOREQ:
+            call exec_xoreq(code, store, pc);
+            break;
+        case S_SWAP:
+            call exec_swap(code, store, pc);
+            break;
+        case S_IF:
+            call exec_if(code, store, procs, pc);
+            break;
+        case S_FROM:
+            call exec_from(code, store, procs, pc);
+            break;
+        case S_CALL:
+            call exec_call_stmt(code, store, procs, pc);
+            break;
+        case S_UNCALL:
+            call exec_uncall_stmt(code, store, procs, pc);
+            break;
+        case S_SKIP:
+            skip;
+            break;
+    } switch (code[pc])
+
+// ── Assignment: x += expr ────────────────────────────────────────────
+
+procedure exec_addeq(int code[], int store[], int pc)
+    // [S_ADDEQ, len, lval..., expr..., len]
+    local int lpc = pc + 2
+        local int slot = 0
+            call resolve_lval(code, store, lpc, slot)
+            local int llen = code[lpc + 1]
+                local int epc = lpc + llen
+                    local int val = 0
+                        call eval_expr(code, store, epc, val)
+                        store[slot] += val
+                        uncall eval_expr(code, store, epc, val)
+                    delocal int val = 0
+                delocal int epc = lpc + llen
+            delocal int llen = code[lpc + 1]
+            uncall resolve_lval(code, store, lpc, slot)
+        delocal int slot = 0
+    delocal int lpc = pc + 2
+
+procedure exec_subeq(int code[], int store[], int pc)
+    local int lpc = pc + 2
+        local int slot = 0
+            call resolve_lval(code, store, lpc, slot)
+            local int llen = code[lpc + 1]
+                local int epc = lpc + llen
+                    local int val = 0
+                        call eval_expr(code, store, epc, val)
+                        store[slot] -= val
+                        uncall eval_expr(code, store, epc, val)
+                    delocal int val = 0
+                delocal int epc = lpc + llen
+            delocal int llen = code[lpc + 1]
+            uncall resolve_lval(code, store, lpc, slot)
+        delocal int slot = 0
+    delocal int lpc = pc + 2
+
+procedure exec_xoreq(int code[], int store[], int pc)
+    local int lpc = pc + 2
+        local int slot = 0
+            call resolve_lval(code, store, lpc, slot)
+            local int llen = code[lpc + 1]
+                local int epc = lpc + llen
+                    local int val = 0
+                        call eval_expr(code, store, epc, val)
+                        store[slot] ^= val
+                        uncall eval_expr(code, store, epc, val)
+                    delocal int val = 0
+                delocal int epc = lpc + llen
+            delocal int llen = code[lpc + 1]
+            uncall resolve_lval(code, store, lpc, slot)
+        delocal int slot = 0
+    delocal int lpc = pc + 2
+
+// ── Swap ─────────────────────────────────────────────────────────────
+
+procedure exec_swap(int code[], int store[], int pc)
+    // [S_SWAP, len, lval1..., lval2..., len]
+    local int l1pc = pc + 2
+        local int s1 = 0
+            call resolve_lval(code, store, l1pc, s1)
+            local int l1len = code[l1pc + 1]
+                local int l2pc = l1pc + l1len
+                    local int s2 = 0
+                        call resolve_lval(code, store, l2pc, s2)
+                        store[s1] <=> store[s2]
+                        uncall resolve_lval(code, store, l2pc, s2)
+                    delocal int s2 = 0
+                delocal int l2pc = l1pc + l1len
+            delocal int l1len = code[l1pc + 1]
+            uncall resolve_lval(code, store, l1pc, s1)
+        delocal int s1 = 0
+    delocal int l1pc = pc + 2
+
+// ── If/Fi ────────────────────────────────────────────────────────────
+
+procedure exec_if(int code[], int store[], int procs[], int pc)
+    // [S_IF, len, cond..., then_count, then_blen, then...,
+    //        else_count, else_blen, else..., exit_cond..., len]
+    local int cpc = pc + 2
+        local int clen = code[cpc + 1]
+            local int tc = code[cpc + clen]
+                local int tblen = code[cpc + clen + 1]
+                    local int tpc = cpc + clen + 2
+                        local int ec = code[tpc + tblen]
+                            local int eblen = code[tpc + tblen + 1]
+                                local int elpc = tpc + tblen + 2
+                                    local int xpc = elpc + eblen
+                                        local int go = 0
+                                            // Evaluate entry cond → go flag, then uncall at same state
+                                            local int cv = 0
+                                                call eval_expr(code, store, cpc, cv)
+                                                if cv != 0 then
+                                                    go += 1
+                                                fi go != 0
+                                                uncall eval_expr(code, store, cpc, cv)
+                                            delocal int cv = 0
+                                            // Branch on go
+                                            if go = 1 then
+                                                call exec_stmts(code, store, procs, tpc, tc)
+                                            else
+                                                call exec_stmts(code, store, procs, elpc, ec)
+                                            fi go = 1
+                                            // Clean go using exit condition
+                                            local int ev = 0
+                                                call eval_expr(code, store, xpc, ev)
+                                                if ev != 0 then
+                                                    go -= 1
+                                                fi ev != 0
+                                                uncall eval_expr(code, store, xpc, ev)
+                                            delocal int ev = 0
+                                        delocal int go = 0
+                                    delocal int xpc = elpc + eblen
+                                delocal int elpc = tpc + tblen + 2
+                            delocal int eblen = code[tpc + tblen + 1]
+                        delocal int ec = code[tpc + tblen]
+                    delocal int tpc = cpc + clen + 2
+                delocal int tblen = code[cpc + clen + 1]
+            delocal int tc = code[cpc + clen]
+        delocal int clen = code[cpc + 1]
+    delocal int cpc = pc + 2
+
+// ── From/Until (loop) ────────────────────────────────────────────────
+
+procedure exec_from(int code[], int store[], int procs[], int pc)
+    // [S_FROM, len, gs, entry..., do_count, do_blen, do...,
+    //         loop_count, loop_blen, loop..., exit_cond..., len]
+    local int gs = code[pc + 2]
+        local int epc = pc + 3
+            local int elen = code[epc + 1]
+                local int dc = code[epc + elen]
+                    local int dblen = code[epc + elen + 1]
+                        local int dpc = epc + elen + 2
+                            local int lc = code[dpc + dblen]
+                                local int lblen = code[dpc + dblen + 1]
+                                    local int lpc = dpc + dblen + 2
+                                        local int xpc = lpc + lblen
+                                            call exec_from_body(code, store, procs,
+                                                                dpc, dc, lpc, lc, xpc, gs)
+                                        delocal int xpc = lpc + lblen
+                                    delocal int lpc = dpc + dblen + 2
+                                delocal int lblen = code[dpc + dblen + 1]
+                            delocal int lc = code[dpc + dblen]
+                        delocal int dpc = epc + elen + 2
+                    delocal int dblen = code[epc + elen + 1]
+                delocal int dc = code[epc + elen]
+            delocal int elen = code[epc + 1]
+        delocal int epc = pc + 3
+    delocal int gs = code[pc + 2]
+
+procedure exec_from_body(int code[], int store[], int procs[],
+                         int dpc, int dc, int lpc, int lc,
+                         int xpc, int gs)
+    // Recursive from/until using store[gs] as go-flag.
+    // store[gs] = 0 on entry.
+    // Note: store[gs] accumulates across recursion levels (returns N-1
+    // for N-iteration loops). This is correct for single-level loops
+    // and properly reversed by uncall. Nested loops that reuse the same
+    // from/until instruction require fresh scratch slots per invocation.
+    call exec_stmts(code, store, procs, dpc, dc)
+    local int xf = 0
+        call eval_expr(code, store, xpc, xf)
+        if xf = 0 then
+            store[gs] += 1
+        fi store[gs] != 0
+        uncall eval_expr(code, store, xpc, xf)
+    delocal int xf = 0
+    if store[gs] != 0 then
+        call exec_stmts(code, store, procs, lpc, lc)
+        store[gs] -= 1
+        call exec_from_body(code, store, procs, dpc, dc, lpc, lc, xpc, gs)
+        store[gs] += 1
+        uncall exec_stmts(code, store, procs, lpc, lc)
+    fi store[gs] != 0
+
+// ── Call / Uncall ────────────────────────────────────────────────────
+
+procedure exec_call_stmt(int code[], int store[], int procs[], int pc)
+    local int pidx = code[pc + 2]
+        local int poff = procs[pidx * 4]
+            local int pn = procs[pidx * 4 + 1]
+                call exec_stmts(code, store, procs, poff, pn)
+            delocal int pn = procs[pidx * 4 + 1]
+        delocal int poff = procs[pidx * 4]
+    delocal int pidx = code[pc + 2]
+
+procedure exec_uncall_stmt(int code[], int store[], int procs[], int pc)
+    local int pidx = code[pc + 2]
+        local int poff = procs[pidx * 4]
+            local int pn = procs[pidx * 4 + 1]
+                uncall exec_stmts(code, store, procs, poff, pn)
+            delocal int pn = procs[pidx * 4 + 1]
+        delocal int poff = procs[pidx * 4]
+    delocal int pidx = code[pc + 2]

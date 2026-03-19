@@ -1,0 +1,48 @@
+; Bubble sort in original 1982 Janus syntax (Lutz & Derby)
+; NOTE: This program contains a known bug from the original 1982 paper.
+; The fi-condition "perm[j] > perm[j+1]" is not always consistent with
+; the if-condition "list[j] > list[j+1]" after the first outer pass,
+; because perm is no longer the identity permutation in later passes.
+; The program only works correctly for n <= 3.  See Lutz & Derby (1982).
+
+list[12]    ;List to sort
+perm[12]    ;Permutation done during sort.  Initially the identity permutation
+n           ;Number of numbers
+i j         ;Loop counters
+
+procedure sort      ;Bubble sort list, permuting perm.
+    from i=0
+    loop j += n-2
+         from j=n-2
+         loop if   list[j] > list[j+1]
+                   then list[j] : list[j+1]
+                        perm[j] : perm[j+1]
+                   fi   perm[j] > perm[j+1]
+              j -= 1
+         until j=i-1
+         j -= i-1
+         i += 1
+    until i=n-1
+    i -= n-1
+
+procedure makeidperm    ;Add identity permutation to perm. Use to initialize perm
+    from i=0
+    loop perm[i] += i
+         i += 1
+    until i=n
+    i -= n
+
+procedure main
+    n += 5
+    list[0] += 30
+    list[1] += 10
+    list[2] += 50
+    list[3] += 20
+    list[4] += 40
+    call makeidperm
+    call sort
+    write list[0]
+    write list[1]
+    write list[2]
+    write list[3]
+    write list[4]

@@ -1,245 +1,296 @@
-// Modern Janus Self-Interpreter (Full Implementation - Optimized)
-// Uses: struct, macros, ternary expressions, SWITCH, and MULTI-ANCILLA blocks.
+// Modern Janus Self-Interpreter (Meta-Circular Edition - C-Style Minimal)
+// Supports interpreting its own new syntax (SWITCH, ANCILLA blocks).
+// Uses optional exit conditions: if (cond) { ... }; and switch (expr) { ... };
 
 #include "opcodes.ja"
 
 struct VM {
-    int code[4096],
-    int store[1024],
-    int procs[256],  // [offset, n_stmts, n_params, 0] * 64 procs
-    int pc,
-    int n
-}
-
-// ── Helpers ─────────────────────────────────────────────────────────
+    int code[4096];
+    int store[1024];
+    int procs[256];  // [offset, n_stmts, n_params, 0] * 64 procs
+    int pc;
+    int n;
+};
 
 #define GET_CODE(off) vm.code[off]
 #define GET_STORE(idx) vm.store[idx]
 
 // ── Expression evaluation ────────────────────────────────────────────
 
-procedure eval_expr(VM vm, int pc, int result)
+void eval_expr(VM vm, int pc, int result) {
     switch (GET_CODE(pc)) {
-        case E_CONST:  result += GET_CODE(pc + 2)
-        case E_VAR:    result += GET_STORE(GET_CODE(pc + 2))
-        case E_BINOP:  call eval_binop(vm, pc, result)
-        case E_ARRIDX: call eval_arridx(vm, pc, result)
-    } switch (GET_CODE(pc))
+        case E_CONST:  result += GET_CODE(pc + 2);
+            break;
+        case E_VAR:    result += GET_STORE(GET_CODE(pc + 2));
+            break;
+        case E_BINOP:  call eval_binop(vm, pc, result);
+            break;
+        case E_ARRIDX: call eval_arridx(vm, pc, result);
+            break;
+    };
+}
 
-procedure eval_binop(VM vm, int pc, int result)
-    ancilla (int op = GET_CODE(pc + 2),
-             int lpc = pc + 3,
-             int lv = 0) {
-        call eval_expr(vm, lpc, lv)
-        ancilla (int rpc = lpc + GET_CODE(lpc + 1),
-                 int rv = 0) {
-            call eval_expr(vm, rpc, rv)
-            call apply_binop(op, lv, rv, result)
-            uncall eval_expr(vm, rpc, rv)
-        }
-        uncall eval_expr(vm, lpc, lv)
-    }
+void eval_binop(VM vm, int pc, int result) {
+    ancilla (int op = GET_CODE(pc + 2), int lpc = pc + 3, int lv = 0) {
+        call eval_expr(vm, lpc, lv);
+        ancilla (int rpc = lpc + GET_CODE(lpc + 1), int rv = 0) {
+            call eval_expr(vm, rpc, rv);
+            call apply_binop(op, lv, rv, result);
+            uncall eval_expr(vm, rpc, rv);
+        };
+        uncall eval_expr(vm, lpc, lv);
+    };
+}
 
-procedure apply_binop(int op, int a, int b, int result)
+void apply_binop(int op, int a, int b, int result) {
     switch (op) {
-        case OP_ADD:  result += a + b
-        case OP_SUB:  result += a - b
-        case OP_MUL:  result += a * b
-        case OP_DIV:  result += a / b
-        case OP_MOD:  result += a % b
-        case OP_AND:  result += a & b
-        case OP_OR:   result += a | b
-        case OP_XOR:  result += a ^ b
-        case OP_LT:   result += (a < b ? 1 : 0)
-        case OP_GT:   result += (a > b ? 1 : 0)
-        case OP_EQ:   result += (a = b ? 1 : 0)
-        case OP_NEQ:  result += (a != b ? 1 : 0)
-        case OP_LE:   result += (a <= b ? 1 : 0)
-        case OP_GE:   result += (a >= b ? 1 : 0)
-        case OP_LAND: result += (a != 0 && b != 0 ? 1 : 0)
-        case OP_LOR:  result += (a != 0 || b != 0 ? 1 : 0)
-    } switch (op)
+        case OP_ADD:  result += a + b;
+            break;
+        case OP_SUB:  result += a - b;
+            break;
+        case OP_MUL:  result += a * b;
+            break;
+        case OP_DIV:  result += a / b;
+            break;
+        case OP_MOD:  result += a % b;
+            break;
+        case OP_LT:   result += (a < b ? 1 : 0);
+            break;
+        case OP_GT:   result += (a > b ? 1 : 0);
+            break;
+        case OP_EQ:   result += (a == b ? 1 : 0);
+            break;
+        case OP_NEQ:  result += (a != b ? 1 : 0);
+            break;
+        case OP_LE:   result += (a <= b ? 1 : 0);
+            break;
+        case OP_GE:   result += (a >= b ? 1 : 0);
+            break;
+        case OP_LAND: result += (a != 0 && b != 0 ? 1 : 0);
+            break;
+        case OP_LOR:  result += (a != 0 || b != 0 ? 1 : 0);
+            break;
+    };
+}
 
-procedure eval_arridx(VM vm, int pc, int result)
-    ancilla (int base = GET_CODE(pc + 2),
-             int ipc = pc + 3,
-             int idx = 0) {
-        call eval_expr(vm, ipc, idx)
-        result += GET_STORE(base + idx)
-        uncall eval_expr(vm, ipc, idx)
-    }
+void eval_arridx(VM vm, int pc, int result) {
+    ancilla (int base = GET_CODE(pc + 2), int ipc = pc + 3, int idx = 0) {
+        call eval_expr(vm, ipc, idx);
+        result += GET_STORE(base + idx);
+        uncall eval_expr(vm, ipc, idx);
+    };
+}
 
 // ── Lvalue resolution ────────────────────────────────────────────────
 
-procedure resolve_lval(VM vm, int pc, int slot)
+void resolve_lval(VM vm, int pc, int slot) {
     switch (GET_CODE(pc)) {
-        case L_VAR:    slot += GET_CODE(pc + 2)
+        case L_VAR:    slot += GET_CODE(pc + 2);
+            break;
         case L_ARRIDX:
-            ancilla (int base = GET_CODE(pc + 2),
-                     int ipc = pc + 3,
-                     int idx = 0) {
-                call eval_expr(vm, ipc, idx)
-                slot += base + idx
-                uncall eval_expr(vm, ipc, idx)
-            }
-    } switch (GET_CODE(pc))
+            ancilla (int base = GET_CODE(pc + 2), int ipc = pc + 3, int idx = 0) {
+                call eval_expr(vm, ipc, idx);
+                slot += base + idx;
+                uncall eval_expr(vm, ipc, idx);
+            };
+            break;
+    };
+}
 
 // ── Statement execution ──────────────────────────────────────────────
 
-procedure exec_stmts(VM vm)
-    if vm.n != 0 then
-        call dispatch(vm)
+void exec_stmts(VM vm) {
+    if (vm.n != 0) {
+        call dispatch(vm);
         ancilla (int slen = GET_CODE(vm.pc + 1)) {
-            vm.pc += slen
-            vm.n -= 1
-            call exec_stmts(vm)
-            vm.n += 1
-            vm.pc -= slen
-        }
-    fi vm.n != 0
+            vm.pc += slen;
+            vm.n -= 1;
+            call exec_stmts(vm);
+            vm.n += 1;
+            vm.pc -= slen;
+        };
+    };
+}
 
-procedure dispatch(VM vm)
+void dispatch(VM vm) {
     ancilla (int tag = GET_CODE(vm.pc)) {
         switch (tag) {
-            case S_ADDEQ:  call exec_assign(vm, tag)
-            case S_SUBEQ:  call exec_assign(vm, tag)
-            case S_XOREQ:  call exec_assign(vm, tag)
-            case S_SWAP:   call exec_swap(vm)
-            case S_IF:     call exec_if(vm)
-            case S_FROM:   call exec_from(vm)
-            case S_CALL:   call exec_call_stmt(vm)
-            case S_UNCALL: call exec_uncall_stmt(vm)
-            case S_SKIP:   skip
-        } switch (tag)
-    }
+            case S_ADDEQ:  call exec_assign(vm, tag);
+                break;
+            case S_SUBEQ:  call exec_assign(vm, tag);
+                break;
+            case S_XOREQ:  call exec_assign(vm, tag);
+                break;
+            case S_SWAP:   call exec_swap(vm);
+                break;
+            case S_IF:     call exec_if(vm);
+                break;
+            case S_FROM:   call exec_from(vm);
+                break;
+            case S_CALL:   call exec_call_stmt(vm);
+                break;
+            case S_UNCALL: call exec_uncall_stmt(vm);
+                break;
+            case S_SWITCH: call exec_switch(vm);
+                break;
+            case S_BLOCK:  call exec_block_stmt(vm);
+                break;
+            case S_SKIP:   skip;
+                break;
+        };
+    };
+}
 
-procedure exec_assign(VM vm, int tag)
-    ancilla (int lpc = vm.pc + 2,
-             int slot = 0) {
-        call resolve_lval(vm, lpc, slot)
-        ancilla (int epc = lpc + GET_CODE(lpc + 1),
-                 int val = 0) {
-            call eval_expr(vm, epc, val)
+void exec_assign(VM vm, int tag) {
+    ancilla (int lpc = vm.pc + 2, int slot = 0) {
+        call resolve_lval(vm, lpc, slot);
+        ancilla (int epc = lpc + GET_CODE(lpc + 1), int val = 0) {
+            call eval_expr(vm, epc, val);
             switch (tag) {
-                case S_ADDEQ: GET_STORE(slot) += val
-                case S_SUBEQ: GET_STORE(slot) -= val
-                case S_XOREQ: GET_STORE(slot) ^= val
-            } switch (tag)
-            uncall eval_expr(vm, epc, val)
-        }
-        uncall resolve_lval(vm, lpc, slot)
-    }
+                case S_ADDEQ: GET_STORE(slot) += val;
+                    break;
+                case S_SUBEQ: GET_STORE(slot) -= val;
+                    break;
+                case S_XOREQ: GET_STORE(slot) ^= val;
+                    break;
+            };
+            uncall eval_expr(vm, epc, val);
+        };
+        uncall resolve_lval(vm, lpc, slot);
+    };
+}
 
-procedure exec_swap(VM vm)
-    ancilla (int l1pc = vm.pc + 2,
-             int s1 = 0) {
-        call resolve_lval(vm, l1pc, s1)
-        ancilla (int l2pc = l1pc + GET_CODE(l1pc + 1),
-                 int s2 = 0) {
-            call resolve_lval(vm, l2pc, s2)
-            GET_STORE(s1) <=> GET_STORE(s2)
-            uncall resolve_lval(vm, l2pc, s2)
-        }
-        uncall resolve_lval(vm, l1pc, s1)
-    }
+void exec_swap(VM vm) {
+    ancilla (int l1pc = vm.pc + 2, int s1 = 0) {
+        call resolve_lval(vm, l1pc, s1);
+        ancilla (int l2pc = l1pc + GET_CODE(l1pc + 1), int s2 = 0) {
+            call resolve_lval(vm, l2pc, s2);
+            GET_STORE(s1) <=> GET_STORE(s2);
+            uncall resolve_lval(vm, l2pc, s2);
+        };
+        uncall resolve_lval(vm, l1pc, s1);
+    };
+}
 
-procedure exec_if(VM vm)
-    ancilla (int cpc = vm.pc + 2,
-             int go = 0,
-             int cv = 0) {
-        call eval_expr(vm, cpc, cv)
-        if cv != 0 then go += 1 fi go != 0
-        uncall eval_expr(vm, cpc, cv)
-        
-        if go = 1 then
-            ancilla (int tc = GET_CODE(cpc + GET_CODE(cpc + 1)),
-                     int tpc = cpc + GET_CODE(cpc + 1) + 2,
-                     int old_pc = vm.pc,
-                     int old_n = vm.n) {
-                vm.pc += tpc - old_pc; vm.n += tc - old_n
-                call exec_stmts(vm)
-                vm.n -= tc - old_n; vm.pc -= tpc - old_pc
-            }
-        else
-            ancilla (int clen = GET_CODE(cpc + 1),
-                     int tblen = GET_CODE(cpc + clen + 1),
-                     int ec = GET_CODE(cpc + clen + tblen + 2),
-                     int epc = cpc + clen + tblen + 4,
-                     int old_pc = vm.pc,
-                     int old_n = vm.n) {
-                vm.pc += epc - old_pc; vm.n += ec - old_n
-                call exec_stmts(vm)
-                vm.n -= ec - old_n; vm.pc -= epc - old_pc
-            }
-        fi go = 1
-        
-        ancilla (int xpc = cpc + GET_CODE(cpc + 1) + GET_CODE(cpc + GET_CODE(cpc + 1) + 1) + GET_CODE(cpc + GET_CODE(cpc + 1) + GET_CODE(cpc + GET_CODE(cpc + 1) + 1) + 3) + 4,
-                 int ev = 0) {
-            call eval_expr(vm, xpc, ev)
-            if ev != 0 then go -= 1 fi go = 0
-            uncall eval_expr(vm, xpc, ev)
-        }
-    }
+void exec_if(VM vm) {
+    ancilla (int cpc = vm.pc + 2, int go = 0, int cv = 0) {
+        call eval_expr(vm, cpc, cv);
+        if (cv != 0) { go += 1; };
+        uncall eval_expr(vm, cpc, cv);
+        if (go == 1) {
+            ancilla (int tc = GET_CODE(cpc + GET_CODE(cpc + 1)), int tpc = cpc + GET_CODE(cpc + 1) + 2, int old_pc = vm.pc, int old_n = vm.n) {
+                vm.pc += tpc - old_pc; vm.n += tc - old_n;
+                call exec_stmts(vm);
+                vm.n -= tc - old_n; vm.pc -= tpc - old_pc;
+            };
+        } else {
+            ancilla (int clen = GET_CODE(cpc + 1), int tblen = GET_CODE(cpc + clen + 1), int ec = GET_CODE(cpc + clen + tblen + 2), int epc = cpc + clen + tblen + 4, int old_pc = vm.pc, int old_n = vm.n) {
+                vm.pc += epc - old_pc; vm.n += ec - old_n;
+                call exec_stmts(vm);
+                vm.n -= ec - old_n; vm.pc -= epc - old_pc;
+            };
+        };
+        ancilla (int xpc = cpc + GET_CODE(cpc + 1) + GET_CODE(cpc + GET_CODE(cpc + 1) + 1) + GET_CODE(cpc + GET_CODE(cpc + 1) + GET_CODE(cpc + GET_CODE(cpc + 1) + 1) + 3) + 4, int ev = 0) {
+            call eval_expr(vm, xpc, ev);
+            if (ev != 0) { go -= 1; };
+            uncall eval_expr(vm, xpc, ev);
+        };
+    };
+}
 
-procedure exec_from(VM vm)
-    ancilla (int gs = GET_CODE(vm.pc + 2),
-             int epc = vm.pc + 3,
-             int dc = GET_CODE(epc + GET_CODE(epc + 1)),
-             int dpc = epc + GET_CODE(epc + 1) + 2,
-             int lc = GET_CODE(dpc + GET_CODE(dpc + 1)),
-             int lpc = dpc + GET_CODE(dpc + 1) + 2,
-             int xpc = lpc + GET_CODE(lpc + 1)) {
-        call exec_from_body(vm, dpc, dc, lpc, lc, xpc, gs)
-    }
+void exec_switch(VM vm) {
+    ancilla (int epc = vm.pc + 2, int val = 0) {
+        call eval_expr(vm, epc, val);
+        ancilla (int n_cases = GET_CODE(epc + GET_CODE(epc + 1))) {
+            ancilla (int found_pc = 0, int found_n = 0, int cur = epc + GET_CODE(epc + 1) + 1) {
+                for (int i = 0; i < n_cases; i += 1) {
+                    ancilla (int c_val = 0) {
+                        call eval_expr(vm, cur + 2, c_val);
+                        if (c_val == val) {
+                            found_pc += GET_CODE(cur + GET_CODE(cur + 1) + 2);
+                            found_n += GET_CODE(cur + GET_CODE(cur + 1));
+                        };
+                        uncall eval_expr(vm, cur + 2, c_val);
+                    };
+                    cur += GET_CODE(cur + 1);
+                }
+                if (found_pc != 0) {
+                    ancilla (int old_pc = vm.pc, int old_n = vm.n) {
+                        vm.pc += found_pc - old_pc; vm.n += found_n - old_n;
+                        call exec_stmts(vm);
+                        vm.n -= found_n - old_n; vm.pc -= found_pc - old_pc;
+                    };
+                } else {
+                    ancilla (int def_pc = cur + 2, int def_n = GET_CODE(cur)) {
+                        ancilla (int old_pc = vm.pc, int old_n = vm.n) {
+                            vm.pc += def_pc - old_pc; vm.n += def_n - old_n;
+                            call exec_stmts(vm);
+                            vm.n -= def_n - old_n; vm.pc -= def_pc - old_pc;
+                        };
+                    };
+                };
+            };
+        };
+        uncall eval_expr(vm, epc, val);
+    };
+}
 
-procedure exec_from_body(VM vm, int dpc, int dc, int lpc, int lc, int xpc, int gs)
-    ancilla (int old_pc = vm.pc,
-             int old_n = vm.n) {
-        vm.pc += dpc - old_pc; vm.n += dc - old_n
-        call exec_stmts(vm)
-        vm.n -= dc - old_n; vm.pc -= dpc - old_pc
-    }
+void exec_block_stmt(VM vm) {
+    ancilla (int b_count = GET_CODE(vm.pc + 2), int b_pc = vm.pc + 4) {
+        ancilla (int old_pc = vm.pc, int old_n = vm.n) {
+            vm.pc += b_pc - old_pc; vm.n += b_count - old_n;
+            call exec_stmts(vm);
+            vm.n -= b_count - old_n; vm.pc -= b_pc - old_pc;
+        };
+    };
+}
+
+void exec_from(VM vm) {
+    ancilla (int gs = GET_CODE(vm.pc + 2), int epc = vm.pc + 3, int dc = GET_CODE(epc + GET_CODE(epc + 1)), int dpc = epc + GET_CODE(epc + 1) + 2, int lc = GET_CODE(dpc + GET_CODE(dpc + 1)), int lpc = dpc + GET_CODE(dpc + 1) + 2, int xpc = lpc + GET_CODE(lpc + 1)) {
+        call exec_from_body(vm, dpc, dc, lpc, lc, xpc, gs);
+    };
+}
+
+void exec_from_body(VM vm, int dpc, int dc, int lpc, int lc, int xpc, int gs) {
+    ancilla (int old_pc = vm.pc, int old_n = vm.n) {
+        vm.pc += dpc - old_pc; vm.n += dc - old_n;
+        call exec_stmts(vm);
+        vm.n -= dc - old_n; vm.pc -= dpc - old_pc;
+    };
     ancilla (int xf = 0) {
-        call eval_expr(vm, xpc, xf)
-        if xf = 0 then GET_STORE(gs) += 1 fi GET_STORE(gs) != 0
-        uncall eval_expr(vm, xpc, xf)
-    }
-    if GET_STORE(gs) != 0 then
-        ancilla (int old_pc = vm.pc,
-                 int old_n = vm.n) {
-            vm.pc += lpc - old_pc; vm.n += lc - old_n
-            call exec_stmts(vm)
-            vm.n -= lc - old_n; vm.pc -= lpc - old_pc
-        }
-        GET_STORE(gs) -= 1
-        call exec_from_body(vm, dpc, dc, lpc, lc, xpc, gs)
-        GET_STORE(gs) += 1
-        ancilla (int old_pc = vm.pc,
-                 int old_n = vm.n) {
-            vm.pc += lpc - old_pc; vm.n += lc - old_n
-            uncall exec_stmts(vm)
-            vm.n -= lc - old_n; vm.pc -= lpc - old_pc
-        }
-    fi GET_STORE(gs) != 0
+        call eval_expr(vm, xpc, xf);
+        if (xf == 0) { GET_STORE(gs) += 1; };
+        uncall eval_expr(vm, xpc, xf);
+    };
+    if (GET_STORE(gs) != 0) {
+        ancilla (int old_pc = vm.pc, int old_n = vm.n) {
+            vm.pc += lpc - old_pc; vm.n += lc - old_n;
+            call exec_stmts(vm);
+            vm.n -= lc - old_n; vm.pc -= lpc - old_pc;
+        };
+        GET_STORE(gs) -= 1;
+        call exec_from_body(vm, dpc, dc, lpc, lc, xpc, gs);
+        GET_STORE(gs) += 1;
+        ancilla (int old_pc = vm.pc, int old_n = vm.n) {
+            vm.pc += lpc - old_pc; vm.n += lc - old_n;
+            uncall exec_stmts(vm);
+            vm.n -= lc - old_n; vm.pc -= lpc - old_pc;
+        };
+    };
+}
 
-procedure exec_call_stmt(VM vm)
-    ancilla (int pidx = GET_CODE(vm.pc + 2),
-             int poff = vm.procs[pidx * 4],
-             int pn = vm.procs[pidx * 4 + 1],
-             int old_pc = vm.pc,
-             int old_n = vm.n) {
-        vm.pc += poff - old_pc; vm.n += pn - old_n
-        call exec_stmts(vm)
-        vm.n -= pn - old_n; vm.pc -= poff - old_pc
-    }
+void exec_call_stmt(VM vm) {
+    ancilla (int pidx = GET_CODE(vm.pc + 2), int poff = vm.procs[pidx * 4], int pn = vm.procs[pidx * 4 + 1], int old_pc = vm.pc, int old_n = vm.n) {
+        vm.pc += poff - old_pc; vm.n += pn - old_n;
+        call exec_stmts(vm);
+        vm.n -= pn - old_n; vm.pc -= poff - old_pc;
+    };
+}
 
-procedure exec_uncall_stmt(VM vm)
-    ancilla (int pidx = GET_CODE(vm.pc + 2),
-             int poff = vm.procs[pidx * 4],
-             int pn = vm.procs[pidx * 4 + 1],
-             int old_pc = vm.pc,
-             int old_n = vm.n) {
-        vm.pc += poff - old_pc; vm.n += pn - old_n
-        uncall exec_stmts(vm)
-        vm.n -= pn - old_n; vm.pc -= poff - old_pc
-    }
+void exec_uncall_stmt(VM vm) {
+    ancilla (int pidx = GET_CODE(vm.pc + 2), int poff = vm.procs[pidx * 4], int pn = vm.procs[pidx * 4 + 1], int old_pc = vm.pc, int old_n = vm.n) {
+        vm.pc += poff - old_pc; vm.n += pn - old_n;
+        uncall exec_stmts(vm);
+        vm.n -= pn - old_n; vm.pc -= poff - old_pc;
+    };
+}

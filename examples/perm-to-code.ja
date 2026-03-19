@@ -5,29 +5,40 @@
  * size(X)-1, it computes the array X' where X'[i] is the number of X[j < i] that
  * are smaller than X[i].
  */
-procedure perm_to_code(int x[])
-    local int k = size(x)
-    from k = size(x) loop
-        k -= 1
-        local int j = 0
-        from j = 0 loop
-            if x[j] > x[k] then
-                x[j] -= 1
-            fi x[j] >= x[k]
-            j += 1
-        until j = k
-        delocal int j = k
-    until k = 0
-    delocal int k = 0
+void perm_to_code(int x[]) {
+    local int k = size(x) {
+        from (k == size(x)) {
+        }
+        loop {
+            k -= 1;
+            local int j = 0 {
+                from (j == 0) {
+                }
+                loop {
+                    if (x[j] > x[k]) {
+                        x[j] -= 1;
+                    }
+                    fi (x[j] >= x[k]);
+                    j += 1;
+                }
+                until (j == k);
+            }
+            delocal int j = k;
+        }
+        until (k == 0);
+    }
+    delocal int k = 0;
+}
 
-procedure main()
-    int x[6]
+void main() {
+    int x[6];
 
-    x[0] += 2
-    x[1] += 0
-    x[2] += 3
-    x[3] += 1
-    x[4] += 5
-    x[5] += 4
-    show(x)
-    call perm_to_code(x)
+    x[0] += 2;
+    x[1] += 0;
+    x[2] += 3;
+    x[3] += 1;
+    x[4] += 5;
+    x[5] += 4;
+    show(x);
+    call perm_to_code(x);
+}

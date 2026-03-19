@@ -1,92 +1,134 @@
+void crout(int LDU[][], int n) {
+    for (int j = 0; j < n - 1; j += 1) {
+        for (int i = j; i < n - 1; i += 1) {
+            for (int k = 0; k < j - 1; k += 1) {
+                if (k == j) {
+                    LDU[i][j] -= LDU[i][k];
+                } else {
+                    LDU[i][j] -= LDU[i][k] * LDU[k][j];
+                }
+                fi (k == j);
+            }
+        }
 
-procedure crout(int LDU[][], int n)
-  iterate int j = 0 to n-1
-    iterate int i = j to n-1
-      iterate int k = 0 to j-1
-        if k = j
-        then
-          LDU[i][j] -= LDU[i][k]
-        else
-          LDU[i][j] -= LDU[i][k] * LDU[k][j]
-        fi k = j
-      end
-    end
+        local int i = j + 1 {
+            from (i == j + 1) {
+            }
+            loop {
+                for (int k = 0; k < j - 1; k += 1) {
+                    if (k == i) {
+                        LDU[j][j] -= LDU[j][k];
+                    } else {
+                        LDU[j][i] -= LDU[j][k] * LDU[k][i];
+                    }
+                    fi (k == j);
+                }
 
-    iterate int i = j + 1 to n-1
-      iterate int k = 0 to j-1
-        if k = i
-        then
-          LDU[j][j] -= LDU[j][k]
-        else
-          LDU[j][i] -= LDU[j][k] * LDU[k][i]
-        fi k = j
-      end
+                // Divide
+                uncall mult(LDU[j][i], LDU[j][j]);
+                i += 1;
+            }
+            until (i == n);
+        }
+        delocal int i = n;
+    }
+}
 
-      // Divide
-//      local int t = LDU[j][i] / LDU[j][j]
-//        LDU[j][i] -= t * LDU[j][j] - t
-//      delocal int t = LDU[j][i]
-      uncall mult(LDU[j][i], LDU[j][j])
-    end
-  end
+void multLD(int A[][], int LDU[][], int n) {
+    for (int i = 0; i < n - 1; i += 1) {
+        for (int j = 0; j < n - 1; j += 1) {
+            // Mult
+            call mult(A[j][i], LDU[i][i]);
 
-procedure multLD(int A[][], int LDU[][], int n)
-  iterate int i = 0 to n-1
+            local int k = i + 1 {
+                from (k == i + 1) {
+                }
+                loop {
+                    A[j][i] += LDU[k][i] * A[j][k];
+                    k += 1;
+                }
+                until (k == n);
+            }
+            delocal int k = n;
+        }
+    }
+}
 
-    iterate int j = 0 to n-1
-      // Mult
-//      local int t = A[j][i]
-//        A[j][i] += t * LDU[i][i] - t
-//      delocal int t = A[j][i] / LDU[i][i]
-      call mult(A[j][i], LDU[i][i])
+void multU(int A[][], int LDU[][], int n) {
+    local int i = n - 1 {
+        from (i == n - 1) {
+        }
+        loop {
+            for (int j = 0; j < n - 1; j += 1) {
+                local int k = 0 {
+                    from (k == 0) {
+                    }
+                    loop {
+                        A[j][i] += LDU[k][i] * A[j][k];
+                        k += 1;
+                    }
+                    until (k == i);
+                }
+                delocal int k = i;
+            }
+            i -= 1;
+        }
+        until (i == -1);
+    }
+    delocal int i = -1;
+}
 
-      iterate int k = i+1 to n-1
-        A[j][i] += LDU[k][i] * A[j][k]
-      end
-    end
-  end
+void mult(int x, int y) {
+    local int t = x {
+        x += t * y - t;
+    }
+    delocal int t = x / y;
+}
 
-procedure multU(int A[][], int LDU[][], int n)
-  iterate int i = n-1 by -1 to 0
-    iterate int j = 0 to n-1
-      iterate int k = 0 to i-1
-        A[j][i] += LDU[k][i] * A[j][k]
-      end
-    end
-  end
+void matrix_mult(int A[][], int B[][], int m) {
+    call crout(B, m);
+    call multLD(A, B, m);
+    call multU(A, B, m);
+    uncall crout(B, m);
+}
 
+void main() {
+    int A[3][3];
+    int B[3][3];
+    int n;
+    n += 3;
 
-procedure mult (int x, int y)
-  local int t = x
-    x += t * y - t
-  delocal int t = x / y
+    A[0][0] ^= 3;
+    A[1][0] ^= 1;
+    A[2][0] ^= 4;
+    A[0][1] ^= 2;
+    A[1][1] ^= 2;
+    A[2][1] ^= 3;
+    A[0][2] ^= 4;
+    A[1][2] ^= 1;
+    A[2][2] ^= 1;
 
+    B[0][0] ^= 2;
+    B[1][0] ^= 4;
+    B[2][0] ^= 2;
+    B[0][1] ^= 4;
+    B[1][1] ^= 1;
+    B[2][1] ^= 3;
+    B[0][2] ^= 4;
+    B[1][2] ^= 1;
+    B[2][2] ^= 4;
 
-procedure matrix_mult(int A[][], int B[][], int m)
-  call crout(B, n)
-  call multLD(A, B, n)
-  call multU(A, B, n)
-  uncall crout(B, n)
-
-
-procedure main()
-  int A[3][3]
-  int B[3][3]
-  int n
-  n += 3
-
-  A[0][0] ^= 3 A[1][0] ^= 1 A[2][0] ^= 4
-  A[0][1] ^= 2 A[1][1] ^= 2 A[2][1] ^= 3
-  A[0][2] ^= 4 A[1][2] ^= 1 A[2][2] ^= 1
-
-  B[0][0] ^= 2 B[1][0] ^= 4 B[2][0] ^= 2
-  B[0][1] ^= 4 B[1][1] ^= 1 B[2][1] ^= 3
-  B[0][2] ^= 4 B[1][2] ^= 1 B[2][2] ^= 4
-
-  uncall crout(B, n)
-  iterate int i = 1 to 1
-    call multLD(A, B, n)
-    call multU(A, B, n)
-  end
-  call crout(B, n)
-
+    uncall crout(B, n);
+    local int i = 1 {
+        from (i == 1) {
+        }
+        loop {
+            call multLD(A, B, n);
+            call multU(A, B, n);
+            i += 1;
+        }
+        until (i == 2);
+    }
+    delocal int i = 2;
+    call crout(B, n);
+}

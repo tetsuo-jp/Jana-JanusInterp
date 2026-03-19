@@ -1,0 +1,7 @@
+void main() {
+    int i;
+    int j;
+    from (i == j + 1) loop {
+        i += 1;
+    } until (i == j + 2);
+}

@@ -1,0 +1,18 @@
+void main() {
+    int x1, x2;
+    call pair(x1, x2);
+
+    local int shown_count, int shown_head {
+        shown_count += 3;
+        shown_head += 1;
+        shown_count -= 3;
+        shown_head -= 1;
+    } delocal int shown_count, int shown_head;
+}
+
+void pair(int x, int y) {
+    x += 1;
+    y += 2;
+    y -= 2;
+    x -= 1;
+}

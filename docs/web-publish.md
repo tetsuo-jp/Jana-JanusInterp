@@ -1,14 +1,14 @@
 # Web Publish Guide
 
 This repository already contains a browser playground under `web/`. The PHP
-backend can now execute the Python interpreter in `src-python/`.
+backend can now execute the Python interpreter in `src/`.
 
 ## Requirements
 
 - PHP 8+
 - Python 3
 - The repository available on the server, or `web/config.php` configured to
-  point at the deployed `src-python/` and `examples/` locations
+  point at the deployed `src/` and `examples/` locations
 - A writable `web/programs/` directory for saved snippets
 
 ## Setup
@@ -23,7 +23,7 @@ backend can now execute the Python interpreter in `src-python/`.
    - `save_enabled`
 3. Ensure the web server user can write to `web/programs/`.
 4. Publish `web/` as the document root content.
-5. Keep the repository checkout, or at minimum `src-python/` and `examples/`, on the same host that serves `web/`.
+5. Keep the repository checkout, or at minimum `src/` and `examples/`, on the same host that serves `web/`.
 
 ## What Works
 
@@ -83,7 +83,7 @@ Development-style config:
 return array(
   "python_bin" => "python3",
   "repo_root" => realpath(__DIR__ . "/.."),
-  "src_python_dir" => realpath(__DIR__ . "/../src-python"),
+  "src_python_dir" => realpath(__DIR__ . "/../src"),
   "timeout_seconds" => 30,
   "max_code_bytes" => 100000,
   "save_enabled" => true,
@@ -97,7 +97,7 @@ Production-style config:
 return array(
   "python_bin" => "/usr/bin/python3",
   "repo_root" => "/srv/jana/Jana-JanusInterp",
-  "src_python_dir" => "/srv/jana/Jana-JanusInterp/src-python",
+  "src_python_dir" => "/srv/jana/Jana-JanusInterp/src",
   "timeout_seconds" => 10,
   "max_code_bytes" => 50000,
   "save_enabled" => false,

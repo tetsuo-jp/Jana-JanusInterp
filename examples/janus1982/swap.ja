@@ -1,0 +1,16 @@
+; Demonstration of 1982 Janus swap and modification operators
+; All variables are global
+a
+b
+tmp
+
+procedure main
+    a += 42
+    b += 17
+    ; Swap a and b using the colon operator
+    a : b
+    write a    ; should print 17
+    write b    ; should print 42
+    ; XOR update: tmp != b toggles bits of tmp with b
+    tmp != b
+    write tmp  ; should print 42 (XOR of 0 and 42)

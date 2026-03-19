@@ -28,3 +28,4 @@ web/programs/*
 # Local Copilot/Codex repo guidance
 AGENTS.md
 .codexignore
+CLAUDE.md

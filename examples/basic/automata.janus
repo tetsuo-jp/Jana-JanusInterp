@@ -1,0 +1,89 @@
+// Simulation of One-Dimensional Reversible Cellular Automata
+
+procedure cellStep(int map[112], int cell[3], int rmap[112], int i, int t1, int t2)
+    t1 <=> cell[i]
+    t2 ^= map[t1]
+    t1 ^= rmap[t2]
+    t2 <=> cell[i]
+
+procedure swapAux(int cell[3], int i, int j, int l, int r)
+    r ^= cell[i] & 1
+    cell[i] ^= r
+    if cell[j] & 100 = 100 then
+        l ^= 1
+        cell[j] ^= 100
+    fi l = 1
+
+procedure swap(int cell[3], int i, int j, int l, int r)
+    call swapAux(cell, i, j, l, r)
+    l <=> r
+    uncall swapAux(cell, i, j, l, r)
+
+procedure communicate(int cell[3], int cells, int i, int j, int l, int r)
+    from i = 0
+    do
+        j ^= i + 1
+        call swap(cell, i, j, l, r)
+        j ^= i + 1
+    loop
+        i += 1
+    until i = cells - 2
+    i += 1
+    call swap(cell, i, j, l, r)
+    i ^= cells - 1
+
+procedure output(int cell[3], int cells, int i)
+    from i = 0
+    do
+        printf("%d", cell[i])
+        i += 1
+    until i = cells
+    i ^= cells
+
+procedure simulation(int map[112], int cell[3], int cells, int steps, int rmap[112], int i, int j, int n, int t1, int t2, int l, int r)
+    call output(cell, cells, i)
+    from n = 0
+    do
+        from i = 0
+        do
+            call cellStep(map, cell, rmap, i, t1, t2)
+            i += 1
+        until i = cells
+        i ^= cells
+        call communicate(cell, cells, i, j, l, r)
+        n += 1
+        call output(cell, cells, i)
+    until n = steps
+    n ^= steps
+
+procedure compInvMap(int map[112], int rmap[112], int n)
+    from n = 0
+    do
+        rmap[map[n]] ^= n
+        n += 1
+    until n = 112
+    n ^= 112
+
+procedure main()
+    int map[112], rmap[112]
+    int cell[3]
+    int cells, steps
+    int i, j, n, t1, t2, l, r
+
+    map[0] ^= 0
+    map[1] ^= 2
+    map[2] ^= 4
+    map[3] ^= 3
+    map[4] ^= 1
+    map[5] ^= 5
+    map[6] ^= 6
+    map[7] ^= 7
+    call compInvMap(map, rmap, n)
+
+    cells ^= 3
+    cell[0] ^= 4
+    cell[1] ^= 4
+
+    steps ^= 1
+
+    call simulation(map, cell, cells, steps, rmap, i, j, n, t1, t2, l, r)

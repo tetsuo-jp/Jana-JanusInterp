@@ -1,0 +1,44 @@
+// run-length encoding
+
+void encode(int text[], int arc[], int i, int j) {
+    from (i == 0 && j == 0) {
+    }
+    loop {
+        arc[j] += text[i];
+        text[i] -= arc[j];
+        from (arc[j + 1] == 0) {
+            arc[j + 1] += 1;
+            i += 1;
+        }
+        loop {
+            text[i] -= arc[j];
+        }
+        until (arc[j] != text[i]);
+        j += 2;
+    }
+    until (text[i] == 0);
+
+    from (arc[j] == 0) {
+        j -= 2;
+        i -= arc[j + 1];
+    }
+    loop {
+    }
+    until (i == 0);
+}
+
+void main() {
+    int i;
+    int j;
+    int text[7];
+    int arc[14];
+
+    text[0] += 1;
+    text[1] += 1;
+    text[2] += 2;
+    text[3] += 2;
+    text[4] += 2;
+    text[5] += 1;
+    call encode(text, arc, i, j);
+    show(arc);
+}

@@ -1,0 +1,10 @@
+void main() {
+    int x = 0;
+    int y = 7;
+
+    scanf("%d", x);
+
+    local int shown_x = x, int shown_y = y {
+        printf("%d %d\n", shown_x, shown_y);
+    } delocal int shown_x = 0, int shown_y = 0;
+}

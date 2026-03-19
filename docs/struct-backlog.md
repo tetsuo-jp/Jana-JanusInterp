@@ -32,14 +32,14 @@ Recommended execution order:
 
 | Row | Theme | Status | Files | Scoped tests | Done condition |
 | --- | --- | --- | --- | --- | --- |
-| 1 | Struct declarations in AST and parser | done | `src-python/jana_py/ast.py`, `src-python/jana_py/parser.py` | `python3 -m pytest -q src-python/tests/test_struct_parse.py` | `struct` definitions and variable declarations parse with `Type(kind="struct", name=...)` and use-site syntax `Pair p` |
-| 2 | Formatting round-trip | done | `src-python/jana_py/format.py` | `python3 -m pytest -q src-python/tests/test_struct_parse.py` | parsed struct syntax formats back to stable source text |
-| 3 | Runtime representation for simple struct values | done | `src-python/jana_py/runtime.py` | `python3 -m pytest -q src-python/tests/test_struct_runtime.py` | struct variables initialize and persist as named-field values |
-| 4 | Field access and field update as l-values | done | `src-python/jana_py/runtime.py`, `src-python/jana_py/parser.py` | `python3 -m pytest -q src-python/tests/test_struct_runtime.py` | `p.x` reads and updates behave like ordinary l-values |
-| 5 | Procedure argument passing for structs | done | `src-python/jana_py/runtime.py`, `src-python/jana_py/validate.py` | `python3 -m pytest -q src-python/tests/test_struct_runtime.py` | structs can be passed to procedures with field updates visible to caller |
-| 6 | `show` and final store formatting | done | `src-python/jana_py/runtime.py`, `src-python/jana_py/format.py` | `python3 -m pytest -q src-python/tests/test_struct_show.py` | struct values render with field names in `show` and final store output |
-| 7 | Validation and error surfaces | done | `src-python/jana_py/validate.py`, `src-python/jana_py/errors.py` | `python3 -m pytest -q src-python/tests/test_struct_errors.py` | duplicate fields, unknown fields, and type mismatches fail with stable messages |
-| 8 | Arrays of struct variables (`Pair[3] ps`) | done | `src-python/jana_py/parser.py` | `python3 -m pytest -q src-python/tests/test_struct_parse.py src-python/tests/test_struct_runtime.py src-python/tests/test_struct_show.py` | `_starts_vdecl()` recognizes struct arrays; 1D/2D/procedure params all work |
+| 1 | Struct declarations in AST and parser | done | `src/jana_py/ast.py`, `src/jana_py/parser.py` | `python3 -m pytest -q src/tests/test_struct_parse.py` | `struct` definitions and variable declarations parse with `Type(kind="struct", name=...)` and use-site syntax `Pair p` |
+| 2 | Formatting round-trip | done | `src/jana_py/format.py` | `python3 -m pytest -q src/tests/test_struct_parse.py` | parsed struct syntax formats back to stable source text |
+| 3 | Runtime representation for simple struct values | done | `src/jana_py/runtime.py` | `python3 -m pytest -q src/tests/test_struct_runtime.py` | struct variables initialize and persist as named-field values |
+| 4 | Field access and field update as l-values | done | `src/jana_py/runtime.py`, `src/jana_py/parser.py` | `python3 -m pytest -q src/tests/test_struct_runtime.py` | `p.x` reads and updates behave like ordinary l-values |
+| 5 | Procedure argument passing for structs | done | `src/jana_py/runtime.py`, `src/jana_py/validate.py` | `python3 -m pytest -q src/tests/test_struct_runtime.py` | structs can be passed to procedures with field updates visible to caller |
+| 6 | `show` and final store formatting | done | `src/jana_py/runtime.py`, `src/jana_py/format.py` | `python3 -m pytest -q src/tests/test_struct_show.py` | struct values render with field names in `show` and final store output |
+| 7 | Validation and error surfaces | done | `src/jana_py/validate.py`, `src/jana_py/errors.py` | `python3 -m pytest -q src/tests/test_struct_errors.py` | duplicate fields, unknown fields, and type mismatches fail with stable messages |
+| 8 | Arrays of struct variables (`Pair[3] ps`) | done | `src/jana_py/parser.py` | `python3 -m pytest -q src/tests/test_struct_parse.py src/tests/test_struct_runtime.py src/tests/test_struct_show.py` | `_starts_vdecl()` recognizes struct arrays; 1D/2D/procedure params all work |
 
 Starter examples:
 

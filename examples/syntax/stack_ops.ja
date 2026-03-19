@@ -1,0 +1,18 @@
+void stack_demo(stack s, int value, int count) {
+    push(value, s);
+    count += size(s);
+    if (!empty(s)) {
+        value += top(s);
+        pop(value, s);
+    }
+    fi (empty(s));
+    assert (count >= 0);
+}
+
+void main() {
+    stack s;
+    int value;
+    int count;
+    call stack_demo(s, value, count);
+    printf("%d %d\n", value, count);
+}

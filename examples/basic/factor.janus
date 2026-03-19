@@ -1,0 +1,78 @@
+// Factorization program in the time reversible language Janus
+
+// C. Lutz and H. Derby.
+// Janus: a time-reversible language. A letter to Landauer.
+// 1982.
+
+void zeroi(int i, int fact[]) {
+    from (fact[i + 1] == 0) {
+    }
+    loop {
+        i -= 1;
+    }
+    until (i == 0);
+}
+
+void nexttryFactor(int tryFactor) {
+    tryFactor += 2;
+    if (tryFactor == 4) {
+        tryFactor -= 1;
+    }
+    fi (tryFactor == 3);
+}
+
+void factor(int num, int fact[]) {
+    local int tryFactor = 0 {
+        local int i = 0 {
+            from (tryFactor == 0 && num > 1) {
+            }
+            loop {
+                call nexttryFactor(tryFactor);
+                from (fact[i] != tryFactor) {
+                }
+                loop {
+                    i += 1;
+                    fact[i] += tryFactor;
+                    local int z = num / tryFactor {
+                        z <=> num;
+                    }
+                    delocal int z = num * tryFactor;
+                }
+                until (num % tryFactor != 0);
+            }
+            until (tryFactor * tryFactor > num);
+            if (num != 1) {
+                i += 1;
+                fact[i] ^= num;
+                num ^= fact[i];
+                fact[i] ^= num;
+            } else {
+                num -= 1;
+            }
+            fi (fact[i] != fact[i - 1]);
+            if ((fact[i - 1] * fact[i - 1]) < fact[i]) {
+                from ((tryFactor * tryFactor) > fact[i]) {
+                }
+                loop {
+                    uncall nexttryFactor(tryFactor);
+                }
+                until (tryFactor == 0);
+            } else {
+                tryFactor -= fact[i - 1];
+            }
+            fi ((fact[i - 1] * fact[i - 1]) < fact[i]);
+            call zeroi(i, fact);
+        }
+        delocal int i = 0;
+    }
+    delocal int tryFactor = 0;
+}
+
+void main() {
+    int num;
+    int fact[20];
+
+    num += 840;
+    call factor(num, fact);
+    show(fact);
+}

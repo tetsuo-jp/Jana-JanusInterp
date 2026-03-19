@@ -1,0 +1,30 @@
+// Paired Fibonacci
+
+// Robert Glueck and Masahiko Kawabe,
+// A Program Inverter for a Functional Language with Equality and Constructors, 2003.
+// p.260
+
+// fib n = <x1 x2>
+
+void fib(int n, int x1, int x2) {
+    if (n == 0) {
+        x1 += 1;
+        x2 += 1;
+    } else {
+        n -= 1;
+        call fib(n, x1, x2);
+        x1 += x2;
+        x1 <=> x2;
+    }
+    fi (x1 == x2);
+}
+
+void main() {
+    int n;
+    int x1;
+    int x2;
+
+    n += 4;
+    call fib(n, x1, x2);
+    printf("%d %d %d\n", n, x1, x2);
+}

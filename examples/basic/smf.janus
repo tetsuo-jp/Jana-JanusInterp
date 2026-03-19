@@ -1,0 +1,62 @@
+void smf(int m1, int m2, int out, int m1p, int m2p, int position, int mask) {
+    if (m1 > 0) {
+        m1p += m1;
+    } else {
+        m1p -= m1;
+    }
+    fi (m1 > 0);
+
+    if (m2 > 0) {
+        m2p += m2;
+    } else {
+        m2p -= m2;
+    }
+    fi (m2 > 0);
+
+    mask += 1 << 31;
+    from (position == 0) {
+        position += 1;
+    }
+    loop {
+        if (m1p & mask) {
+            out += m2p >> position;
+        }
+        fi (m1p & mask);
+    }
+    until (position == 32);
+
+    if (m1 > 0) {
+        m1p -= m1;
+    } else {
+        m1p += m1;
+        m1p += out;
+        out -= m1p * 2;
+        m1p -= out / 2;
+    }
+    fi (m1 > 0);
+
+    if (m2 > 0) {
+        m2p -= m2;
+    } else {
+        m2p += m2;
+        m2p += out;
+        out -= m2p * 2;
+        m2p -= out / 2;
+    }
+    fi (m2 > 0);
+}
+
+void main() {
+    int m1;
+    int m2;
+    int out;
+    int m1p;
+    int m2p;
+    int position;
+    int mask;
+
+    m1 += 2;
+    m2 += 3;
+    call smf(m1, m2, out, m1p, m2p, position, mask);
+    printf("%d\n", out);
+}

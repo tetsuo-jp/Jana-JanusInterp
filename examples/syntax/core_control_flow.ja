@@ -1,0 +1,28 @@
+void tick(int total) {
+    total += 1;
+}
+
+void main() {
+    int total;
+    int seen[3] = { 0, 0, 0 };
+    local int carry = 0 {
+        for (int i = 0; i < 2; i += 1) {
+            seen[i] += i;
+            if (seen[i] == i) {
+                total += seen[i];
+            } else {
+                total -= 1;
+            }
+            fi (total >= 0);
+        }
+        from (carry == 0) {
+            carry += 1;
+        } loop {
+            carry -= 1;
+            carry += 1;
+        } until (carry == 0);
+        call tick(total);
+        uncall tick(total);
+    } delocal int carry = 0;
+    printf("%d\n", total);
+}
