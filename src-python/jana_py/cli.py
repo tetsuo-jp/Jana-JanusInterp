@@ -135,7 +135,10 @@ def main(argv: list[str] | None = None) -> int:
     if timeout_enabled:
       signal.signal(signal.SIGALRM, _timeout_handler)
       signal.alarm(timeout_sec)
-    if args.std in {"jana", "janus1982"}:
+    if args.std == "jana":
+      from .parser_jana import parse_program as parse_program_jana
+      program = parse_program_jana(args.file, preprocessed.text, preprocessed.line_origins)
+    elif args.std == "janus1982":
       from .parser1982 import parse_program as parse_program_1982
       program = parse_program_1982(args.file, preprocessed.text, preprocessed.line_origins)
     else:
