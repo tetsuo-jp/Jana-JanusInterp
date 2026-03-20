@@ -10,6 +10,7 @@ from .ast import BareDelocalStmt
 from .ast import BareLocalStmt
 from .ast import BinExpr
 from .ast import BinOpKind
+from .ast import DeclType
 from .ast import Boolean
 from .ast import CallStmt
 from .ast import EmptyExpr
@@ -1185,6 +1186,8 @@ class Runtime:
             details.append(f"In procedure `{name}'")
           raise JanaError(err.pos, err.message, details, True)
         raise err
+      if param.decl_type == DeclType.CONSTANT:
+        actual = ConstantParamProxy(actual)
       frame.vars[param.ident.name] = actual
     self._exec_block(frame, proc.body, record_stmt=record_stmt, record_nested=record_nested)
 
@@ -1210,6 +1213,8 @@ class Runtime:
             details.append(f"In procedure `{name}'")
           raise JanaError(err.pos, err.message, details, True)
         raise err
+      if param.decl_type == DeclType.CONSTANT:
+        actual = ConstantParamProxy(actual)
       frame.vars[param.ident.name] = actual
     self._exec_block(frame, invert_stmts(proc.body, global_mode=False), record_stmt=record_stmt, record_nested=record_nested)
 
@@ -2163,3 +2168,27 @@ class ArraySliceProxy(Cell):
     for dim in self.shape:
       length *= dim
     self.array[self.offset:self.offset + length] = new_value
+
+
+class ConstantParamProxy(Cell):
+  """Read-only wrapper around a caller's Cell for constant parameters."""
+  def __init__(self, inner: Cell):
+    self._inner = inner
+    self.writable = False
+    self.kind = inner.kind
+    self.shape = inner.shape
+    self.int_type = inner.int_type
+    self.is_char = inner.is_char
+    self.struct_name = inner.struct_name
+    self.elem_kind = getattr(inner, 'elem_kind', None)
+    self.elem_int_type = getattr(inner, 'elem_int_type', None)
+    self.elem_is_char = getattr(inner, 'elem_is_char', False)
+    self.elem_struct_name = getattr(inner, 'elem_struct_name', None)
+
+  @property
+  def value(self):
+    return self._inner.value
+
+  @value.setter
+  def value(self, new_value):
+    self._inner.value = new_value
