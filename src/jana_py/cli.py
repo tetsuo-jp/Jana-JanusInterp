@@ -10,7 +10,7 @@ import signal
 
 from .format import format_program
 from .invert import invert_program
-from .parser import parse_program
+from .parser_janus2026 import parse_program
 from .preprocess import preprocess_text
 from .c_codegen import format_program as format_c_program
 from .errors import JanaError
@@ -57,7 +57,7 @@ def build_parser() -> argparse.ArgumentParser:
     ),
     formatter_class=argparse.RawDescriptionHelpFormatter,
   )
-  parser.add_argument("--std", dest="std", choices=["janus2026", "jana2014", "janus1982"], default="janus2026", help="language standard: janus2026 (default, C-style 2026), jana2014 (original Jana/Janus syntax), janus1982 (alias for jana2014)")
+  parser.add_argument("--std", dest="std", choices=["janus2026", "jana2014", "jana2014basic", "janus1982", "janus1982ext"], default="janus2026", help="language standard: janus2026 (default, C-style), jana2014, jana2014basic, janus1982 (strict 1982), janus1982ext (1982 + extensions)")
   parser.add_argument("-a", action="store_true", dest="ast", help="print the parsed AST as JSON")
   parser.add_argument("-i", action="store_true", dest="invert", help="invert the program; print source unless combined with execution modes")
   parser.add_argument("-c", action="store_true", dest="c_code", help="emit generated C code instead of running the program")
@@ -136,10 +136,16 @@ def main(argv: list[str] | None = None) -> int:
       signal.signal(signal.SIGALRM, _timeout_handler)
       signal.alarm(timeout_sec)
     if args.std == "jana2014":
-      from .parser_jana import parse_program as parse_program_jana
+      from .parser_jana2014 import parse_program as parse_program_jana
       program = parse_program_jana(args.file, preprocessed.text, preprocessed.line_origins)
-    elif args.std == "janus1982":
-      from .parser1982 import parse_program as parse_program_1982
+    elif args.std == "jana2014basic":
+      from .parser_jana2014basic import parse_program as parse_program_jana
+      program = parse_program_jana(args.file, preprocessed.text, preprocessed.line_origins)
+    elif args.std in ("janus1982", "janus1982ext"):
+      if args.std == "janus1982":
+        from .parser_janus1982 import parse_program as parse_program_1982
+      else:
+        from .parser_janus1982ext import parse_program as parse_program_1982
       program = parse_program_1982(args.file, preprocessed.text, preprocessed.line_origins)
     else:
       program = parse_program(args.file, preprocessed.text, preprocessed.line_origins)

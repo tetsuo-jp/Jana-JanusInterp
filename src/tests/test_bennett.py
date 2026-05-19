@@ -33,7 +33,7 @@ from jana_py.ast import (
     Type,
 )
 from jana_py.bennett import bennett_embed, bennett_embed_procedure, _collect_modified_vars
-from jana_py.parser import parse_program
+from jana_py.parser_janus2026 import parse_program
 from jana_py.validate import validate_program
 from jana_py.runtime import Runtime
 

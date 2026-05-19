@@ -10,7 +10,7 @@ sys.path.insert(0, str(ROOT / "src-python"))
 
 from jana_py.errors import JanaError
 from jana_py.invert import invert_program
-from jana_py.parser import parse_program
+from jana_py.parser_janus2026 import parse_program
 from jana_py.runtime import Runtime
 
 

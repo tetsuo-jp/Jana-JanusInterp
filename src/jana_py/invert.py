@@ -41,6 +41,8 @@ def invert_stmt(stmt, global_mode: bool):
       ModOp.ADD_EQ: ModOp.SUB_EQ,
       ModOp.SUB_EQ: ModOp.ADD_EQ,
       ModOp.XOR_EQ: ModOp.XOR_EQ,
+      ModOp.MUL_EQ: ModOp.DIV_EQ,
+      ModOp.DIV_EQ: ModOp.MUL_EQ,
     }[stmt.mod_op]
     return AssignStmt(mod_op, stmt.lval, stmt.expr, stmt.pos)
   if isinstance(stmt, IfStmt):

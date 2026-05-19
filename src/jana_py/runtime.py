@@ -502,6 +502,18 @@ class Runtime:
               cell.value[i] = self._normalize_int(cell.value[i] + v, cell.elem_int_type)
             elif stmt.mod_op.value == "-=":
               cell.value[i] = self._normalize_int(cell.value[i] - v, cell.elem_int_type)
+            elif stmt.mod_op.value == "*=":
+              if v == 0:
+                raise JanaError(stmt.pos, "Multiplication by zero")
+              if cell.value[i] == 0:
+                raise JanaError(stmt.pos, "Multiplicand is zero")
+              cell.value[i] = self._normalize_int(cell.value[i] * v, cell.elem_int_type)
+            elif stmt.mod_op.value == "/=":
+              if v == 0:
+                raise JanaError(stmt.pos, "Division by zero")
+              if cell.value[i] % v != 0:
+                raise JanaError(stmt.pos, f"Division remains: {cell.value[i]} % {v} != 0")
+              cell.value[i] = self._normalize_int(cell.value[i] // v, cell.elem_int_type)
             else:
               cell.value[i] = self._normalize_int(cell.value[i] ^ v, cell.elem_int_type)
         else:
@@ -511,6 +523,18 @@ class Runtime:
             cell.value = self._normalize_int(cell.value + value, cell.int_type)
           elif stmt.mod_op.value == "-=":
             cell.value = self._normalize_int(cell.value - value, cell.int_type)
+          elif stmt.mod_op.value == "*=":
+            if value == 0:
+              raise JanaError(stmt.pos, "Multiplication by zero")
+            if cell.value == 0:
+              raise JanaError(stmt.pos, "Multiplicand is zero")
+            cell.value = self._normalize_int(cell.value * value, cell.int_type)
+          elif stmt.mod_op.value == "/=":
+            if value == 0:
+              raise JanaError(stmt.pos, "Division by zero")
+            if cell.value % value != 0:
+              raise JanaError(stmt.pos, f"Division remains: {cell.value} % {value} != 0")
+            cell.value = self._normalize_int(cell.value // value, cell.int_type)
           else:
             cell.value = self._normalize_int(cell.value ^ value, cell.int_type)
         if record_stmt and self._is_recordable_stmt(stmt):
@@ -1173,19 +1197,23 @@ class Runtime:
     frame = Frame(vars={})
     for param, arg in zip(proc.params, args):
       if not isinstance(arg, LvalExpr):
-        raise JanaError(arg.pos, "Only l-value arguments are implemented")
-      actual = self._resolve_lval(caller, arg.lval)
-      try:
-        self._check_param_compat(param, actual, arg.pos)
-      except JanaError as err:
-        if err.message.startswith("Expecting array of size"):
-          details = list(err.details)
-          if not any(detail.startswith("In an argument of") for detail in details):
-            details.append(f"In an argument of `{name}', namely `{param.ident.name}'")
-          if not any(detail.startswith("In procedure") for detail in details):
-            details.append(f"In procedure `{name}'")
-          raise JanaError(err.pos, err.message, details, True)
-        raise err
+        if param.decl_type != DeclType.CONSTANT:
+          raise JanaError(arg.pos, "Non-constant argument must be an l-value")
+        val = self._eval_expr(caller, arg)
+        actual = Cell(val, writable=False)
+      else:
+        actual = self._resolve_lval(caller, arg.lval)
+        try:
+          self._check_param_compat(param, actual, arg.pos)
+        except JanaError as err:
+          if err.message.startswith("Expecting array of size"):
+            details = list(err.details)
+            if not any(detail.startswith("In an argument of") for detail in details):
+              details.append(f"In an argument of `{name}', namely `{param.ident.name}'")
+            if not any(detail.startswith("In procedure") for detail in details):
+              details.append(f"In procedure `{name}'")
+            raise JanaError(err.pos, err.message, details, True)
+          raise err
       if param.decl_type == DeclType.CONSTANT:
         actual = ConstantParamProxy(actual)
       frame.vars[param.ident.name] = actual
@@ -1200,19 +1228,23 @@ class Runtime:
     frame = Frame(vars={})
     for param, arg in zip(proc.params, args):
       if not isinstance(arg, LvalExpr):
-        raise JanaError(arg.pos, "Only l-value arguments are implemented")
-      actual = self._resolve_lval(caller, arg.lval)
-      try:
-        self._check_param_compat(param, actual, arg.pos)
-      except JanaError as err:
-        if err.message.startswith("Expecting array of size"):
-          details = list(err.details)
-          if not any(detail.startswith("In an argument of") for detail in details):
-            details.append(f"In an argument of `{name}', namely `{param.ident.name}'")
-          if not any(detail.startswith("In procedure") for detail in details):
-            details.append(f"In procedure `{name}'")
-          raise JanaError(err.pos, err.message, details, True)
-        raise err
+        if param.decl_type != DeclType.CONSTANT:
+          raise JanaError(arg.pos, "Non-constant argument must be an l-value")
+        val = self._eval_expr(caller, arg)
+        actual = Cell(val, writable=False)
+      else:
+        actual = self._resolve_lval(caller, arg.lval)
+        try:
+          self._check_param_compat(param, actual, arg.pos)
+        except JanaError as err:
+          if err.message.startswith("Expecting array of size"):
+            details = list(err.details)
+            if not any(detail.startswith("In an argument of") for detail in details):
+              details.append(f"In an argument of `{name}', namely `{param.ident.name}'")
+            if not any(detail.startswith("In procedure") for detail in details):
+              details.append(f"In procedure `{name}'")
+            raise JanaError(err.pos, err.message, details, True)
+          raise err
       if param.decl_type == DeclType.CONSTANT:
         actual = ConstantParamProxy(actual)
       frame.vars[param.ident.name] = actual
@@ -1451,7 +1483,7 @@ class Runtime:
 
   def _resolve_var(self, frame: Frame, name: str) -> Cell:
     if name not in frame.vars:
-      if self.std == "janus1982":
+      if self.std in ("janus1982", "janus1982ext"):
         # In 1982 Janus all variables are global: resolve via root frame
         root = self._root_frame
         if root is not None and frame is not root:

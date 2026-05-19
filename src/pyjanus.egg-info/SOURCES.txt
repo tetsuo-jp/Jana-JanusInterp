@@ -11,9 +11,11 @@ jana_py/errors.py
 jana_py/format.py
 jana_py/inverse.py
 jana_py/invert.py
-jana_py/parser.py
-jana_py/parser1982.py
-jana_py/parser_jana.py
+jana_py/parser_jana2014.py
+jana_py/parser_jana2014basic.py
+jana_py/parser_janus1982.py
+jana_py/parser_janus1982ext.py
+jana_py/parser_janus2026.py
 jana_py/pebble.py
 jana_py/preprocess.py
 jana_py/runtime.py
@@ -28,6 +30,7 @@ tests/test_bennett.py
 tests/test_char_array_support.py
 tests/test_circuit.py
 tests/test_cli_store_output.py
+tests/test_constant_param.py
 tests/test_control_flow_parity.py
 tests/test_cstyle_syntax.py
 tests/test_debugger_cli.py
@@ -35,6 +38,7 @@ tests/test_dict_program.py
 tests/test_equiv.py
 tests/test_grammar_coverage.py
 tests/test_inverse.py
+tests/test_jana2014.py
 tests/test_janus1982.py
 tests/test_local_parity.py
 tests/test_m1.py

@@ -1,4 +1,4 @@
-"""Tests for the --std janus1982 parser and runtime.
+"""Tests for the --std janus1982 (strict) and janus1982ext (extended) parsers.
 
 These tests use the original 1982 Janus syntax (Lutz & Derby):
   - Global variable declarations (no type keywords)
@@ -9,6 +9,8 @@ These tests use the original 1982 Janus syntax (Lutz & Derby):
   - #               (not-equal comparison)
   - \\               (integer remainder)
   - ;               (line comment)
+
+Tests using extended features (parameterized procedures) use --std=janus1982ext.
 """
 from __future__ import annotations
 import sys
@@ -36,7 +38,7 @@ def _run(tmp_path, source, stdin_text=None, extra_args=()):
 # ---------------------------------------------------------------------------
 
 def test_janus1982_hybrid_fib(capsys, tmp_path):
-    """Procedures with parameters still parse under janus1982 mode."""
+    """Procedures with parameters still parse under janus1982ext mode."""
     source = """
     procedure fib(n, x1, x2)
         if n = 0 then
@@ -55,7 +57,7 @@ def test_janus1982_hybrid_fib(capsys, tmp_path):
     """
     path = tmp_path / "fib82.ja"
     path.write_text(textwrap.dedent(source))
-    main(["--std", "janus1982", "-s", str(path)])
+    main(["--std", "janus1982ext", "-s", str(path)])
     out, _ = capsys.readouterr()
     assert "n = 0" in out
     assert "x1 = 5" in out

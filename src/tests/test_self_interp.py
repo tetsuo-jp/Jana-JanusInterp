@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from jana_py.encode import encode_program, generate_janus, Encoder
-from jana_py.parser import parse_program
+from jana_py.parser_janus2026 import parse_program
 from jana_py.preprocess import preprocess_text
 from jana_py.encode import (
     S_ADDEQ, S_SUBEQ, S_XOREQ, S_SWAP, S_SKIP,

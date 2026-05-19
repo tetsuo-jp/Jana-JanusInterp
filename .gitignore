@@ -30,3 +30,4 @@ web/programs/*
 AGENTS.md
 .codexignore
 CLAUDE.md
+src-python

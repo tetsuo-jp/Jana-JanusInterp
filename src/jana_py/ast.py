@@ -35,6 +35,8 @@ class ModOp(Enum):
   ADD_EQ = "+="
   SUB_EQ = "-="
   XOR_EQ = "^="
+  MUL_EQ = "*="
+  DIV_EQ = "/="
 
 
 class UnaryOpKind(Enum):

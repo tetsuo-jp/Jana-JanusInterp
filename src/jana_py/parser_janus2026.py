@@ -80,7 +80,7 @@ TOKEN_RE = re.compile(
   |(?P<MCOMMENT>/\*.*?\*/)
   |(?P<STRING>"(?:\\.|[^"\\])*")
   |(?P<NUMBER>0b[01]+|\d+)
-  |(?P<OP><=>|\+=|-=|\^=|<<|>>|<=|>=|!=|==|&&|\|\||\*\*|=|<|>|\+|-|\*|/|%|\^|&|\||!|,|\.|\?|:|\(|\)|\[|\]|\{|\}|;)
+  |(?P<OP><=>|\+=|\-=|\^=|\*=|\/=|<<|>>|<=|>=|!=|==|&&|\|\||\*\*|=|<|>|\+|-|\*|\/|%|\^|&|\||!|,|\. |\?|:|\(|\)|\[|\]|\{|\}|;)
   |(?P<IDENT>[A-Za-z][A-Za-z0-9_']*)
   |(?P<MISMATCH>.)
   """,
@@ -409,7 +409,7 @@ class Parser:
     if op := self.tokens.match("OP", "<=>"):
       right = self.parse_lval()
       return SwapStmt(left, right, op.pos)
-    for value, modop in [("+=", ModOp.ADD_EQ), ("-=", ModOp.SUB_EQ), ("^=", ModOp.XOR_EQ)]:
+    for value, modop in [("+=", ModOp.ADD_EQ), ("-=", ModOp.SUB_EQ), ("^=", ModOp.XOR_EQ), ("*=", ModOp.MUL_EQ), ("/=", ModOp.DIV_EQ)]:
       if self.tokens.match("OP", value):
         expr = self.parse_binary_level(0)  # bare ternary requires parentheses
         return AssignStmt(modop, left, expr, pos)
@@ -715,9 +715,10 @@ class Parser:
 
   def parse_assert_stmt(self) -> AssertStmt:
     pos = self.expect_kw("assert").pos
+    self.expect_op("(")
     expr = self.parse_expression()
+    self.expect_op(")")
     return AssertStmt(expr, pos)
-
   def parse_expression(self) -> Expr:
     expr = self.parse_binary_level(0)
     if self.tokens.match("OP", "?"):

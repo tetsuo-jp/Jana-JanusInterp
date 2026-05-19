@@ -20,7 +20,8 @@ PYTHONPATH=src python3 -m jana_py.cli examples/fib.ja
 PYTHONPATH=src python3 -m jana_py.cli -i examples/fib.ja    # 逆実行
 PYTHONPATH=src python3 -m jana_py.cli -d examples/fib.ja    # デバッガ
 PYTHONPATH=src python3 -m jana_py.cli -s examples/fib.ja    # 最終ストア表示
-PYTHONPATH=src python3 -m jana_py.cli --std=janus1982 FILE  # 1982年オリジナル構文
+PYTHONPATH=src python3 -m jana_py.cli --std=janus1982 FILE     # 1982年厳格版
+PYTHONPATH=src python3 -m jana_py.cli --std=janus1982ext FILE  # 1982風＋拡張
 ```
 
 ## テスト
@@ -41,13 +42,14 @@ PYTHONPATH=src python3 -m pytest src/tests/test_cstyle_syntax.py::test_name -q
 
 **実行パイプライン:**
 ```
-cli.py → preprocess.py → parser.py → validate.py → Runtime(program).run()
+cli.py → preprocess.py → parser_*.py → validate.py → Runtime(program).run()
 ```
 
-**3種のパーサ**（`--std` で選択）:
-- `parser.py` — デフォルト（`--std=janus2026`）、C風構文（`for`、`switch`、波括弧）
-- `parser_jana.py` — `--std=jana2014`、モダンJana構文
-- `parser1982.py` — `--std=janus1982`、1982年オリジナルJanus構文
+**4種のパーサ**（`--std` で選択）:
+- `parser_janus2026.py` — デフォルト（`--std=janus2026`）、C風構文（`for`、`switch`、波括弧）
+- `parser_jana2014.py` — `--std=jana2014`、モダンJana構文
+- `parser_janus1982.py` — `--std=janus1982`、janus.pdf準拠の厳格版（int型のみ、パラメータなし手続き）
+- `parser_janus1982ext.py` — `--std=janus1982ext`、1982風構文＋拡張（sized int、struct、local/delocal等）
 
 **`src/jana_py/` の主要モジュール:**
 - `ast.py` — ASTノード（frozen dataclass）

@@ -10,7 +10,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src-python"))
 
-from jana_py.parser import parse_program
+from jana_py.parser_janus2026 import parse_program
 from jana_py.preprocess import preprocess_text
 from jana_py.runtime import Runtime
 from jana_py.validate import validate_program

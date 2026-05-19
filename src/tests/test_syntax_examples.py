@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "src-python"))
 
 from jana_py.format import format_program
-from jana_py.parser import parse_program
+from jana_py.parser_janus2026 import parse_program
 
 
 SYNTAX_DIR = ROOT / "examples" / "syntax"

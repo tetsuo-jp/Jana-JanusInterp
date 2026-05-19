@@ -40,7 +40,7 @@ from jana_py.circuit import (
     synthesize_program,
     synthesize_stmts,
 )
-from jana_py.parser import parse_program
+from jana_py.parser_janus2026 import parse_program
 from jana_py.runtime import Runtime
 from jana_py.validate import validate_program
 
